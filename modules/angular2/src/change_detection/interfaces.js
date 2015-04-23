@@ -1,51 +1,45 @@
 import {List} from 'angular2/src/facade/collection';
+import {Locals} from './parser/locals';
+import {DEFAULT} from './constants';
+import {BindingRecord} from './binding_record';
 
-export class ChangeRecord {
-  bindingMemento:any;
-  change:any;
-
-  constructor(bindingMemento, change) {
-    this.bindingMemento = bindingMemento;
-    this.change = change;
-  }
-
-  //REMOVE IT
-  get currentValue() {
-    return this.change.currentValue;
-  }
-
-  get previousValue() {
-    return this.change.previousValue;
+export class ProtoChangeDetector  {
+  instantiate(dispatcher:any, bindingRecords:List, variableBindings:List, directiveRecords:List):ChangeDetector{
+    return null;
   }
 }
 
-
 /**
- * CHECK_ONCE means that after calling detectChanges the mode of the change detector
- * will become CHECKED.
+ * Interface used by Angular to control the change detection strategy for an application.
+ *
+ * Angular implements the following change detection strategies by default:
+ *
+ * - {@link DynamicChangeDetection}: slower, but does not require `eval()`.
+ * - {@link JitChangeDetection}: faster, but requires `eval()`.
+ *
+ * In JavaScript, you should always use `JitChangeDetection`, unless you are in an environment that has
+ * [CSP](https://developer.mozilla.org/en-US/docs/Web/Security/CSP), such as a Chrome Extension.
+ *
+ * In Dart, use `DynamicChangeDetection` during development. The Angular transformer generates an analog to the
+ * `JitChangeDetection` strategy at compile time.
+ *
+ *
+ * See: {@link DynamicChangeDetection}, {@link JitChangeDetection}
+ *
+ * # Example
+ * ```javascript
+ * bootstrap(MyApp, [bind(ChangeDetection).toValue(dynamicChangeDetection)]);
+ * ```
+ * @exportedAs angular2/change_detection
  */
-export const CHECK_ONCE="CHECK_ONCE";
-
-/**
- * CHECKED means that the change detector should be skipped until its mode changes to
- * CHECK_ONCE or CHECK_ALWAYS.
- */
-export const CHECKED="CHECKED";
-
-/**
- * CHECK_ALWAYS means that after calling detectChanges the mode of the change detector
- * will remain CHECK_ALWAYS.
- */
-export const CHECK_ALWAYS="ALWAYS_CHECK";
-
-/**
- * DETACHED means that the change detector sub tree is not a part of the main tree and
- * should be skipped.
- */
-export const DETACHED="DETACHED";
+export class ChangeDetection {
+  createProtoChangeDetector(name:string, changeControlStrategy:string=DEFAULT):ProtoChangeDetector{
+    return null;
+  }
+}
 
 export class ChangeDispatcher {
-  onRecordChange(directiveMemento, records:List<ChangeRecord>) {}
+  notifyOnBinding(bindingRecord:BindingRecord, value:any) {}
 }
 
 export class ChangeDetector {
@@ -53,9 +47,11 @@ export class ChangeDetector {
   mode:string;
 
   addChild(cd:ChangeDetector) {}
+  addShadowDomChild(cd:ChangeDetector) {}
   removeChild(cd:ChangeDetector) {}
+  removeShadowDomChild(cd:ChangeDetector) {}
   remove() {}
-  hydrate(context:any) {}
+  hydrate(context:any, locals:Locals, directives:any) {}
   dehydrate() {}
   markPathToRootAsCheckOnce() {}
 

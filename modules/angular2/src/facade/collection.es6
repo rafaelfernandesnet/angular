@@ -62,6 +62,7 @@ export class StringMapWrapper {
     }
     return true;
   }
+  static delete(map, key) { delete map[key]; }
   static forEach(map, callback) {
     for (var prop in map) {
       if (map.hasOwnProperty(prop)) {
@@ -128,6 +129,9 @@ export class ListWrapper {
   static filter(array, pred:Function) {
     return array.filter(pred);
   }
+  static indexOf(array, value, startIndex = -1) {
+    return array.indexOf(value, startIndex);
+  }
   static any(list:List, pred:Function) {
     for (var i = 0 ; i < list.length; ++i) {
       if (pred(list[i])) return true;
@@ -180,7 +184,7 @@ export class ListWrapper {
     return list.length == 0;
   }
   static fill(list:List, value, start:int = 0, end:int = null) {
-    list.fill(value, start, end === null ? undefined: end);
+    list.fill(value, start, end === null ? undefined : end);
   }
   static equals(a:List, b:List):boolean {
     if(a.length != b.length) return false;
@@ -189,8 +193,11 @@ export class ListWrapper {
     }
     return true;
   }
-  static slice(l:List, from:int, to:int):List {
-    return l.slice(from, to);
+  static slice(l:List, from:int = 0, to:int = null):List {
+    return l.slice(from, to === null ? undefined : to);
+  }
+  static splice(l:List, from:int, length:int):List {
+    return l.splice(from, length);
   }
   static sort(l:List, compareFn:Function) {
     l.sort(compareFn);

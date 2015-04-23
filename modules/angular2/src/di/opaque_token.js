@@ -1,3 +1,8 @@
+/**
+ * 
+ * 
+ * @exportedAs angular2/di
+ */
 export class OpaqueToken {
   _desc:string;
 
@@ -5,7 +10,7 @@ export class OpaqueToken {
     this._desc = `Token(${desc})`;
   }
 
-  toString() {
+  toString():string {
     return this._desc;
   }
 }

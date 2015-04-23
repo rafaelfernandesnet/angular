@@ -1,10 +1,9 @@
 import {isPresent, isBlank, BaseException, Type} from 'angular2/src/facade/lang';
 import {List, ListWrapper, MapWrapper, StringMapWrapper} from 'angular2/src/facade/collection';
-import {ContextWithVariableBindings} from './parser/context_with_variable_bindings';
 import {ProtoRecord} from './proto_record';
 import {ExpressionChangedAfterItHasBeenChecked} from './exceptions';
 import {NO_CHANGE} from './pipes/pipe';
-import {ChangeRecord, ChangeDetector, CHECK_ALWAYS, CHECK_ONCE, CHECKED, DETACHED} from './interfaces';
+import {CHECK_ALWAYS, CHECK_ONCE, CHECKED, DETACHED, ON_PUSH} from './constants';
 
 export var uninitialized = new Object();
 
@@ -40,31 +39,7 @@ var _simpleChanges = [
   new SimpleChange(null, null),
   new SimpleChange(null, null),
   new SimpleChange(null, null)
-]
-
-var _changeRecordsIndex = 0;
-var _changeRecords = [
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null),
-  new ChangeRecord(null, null)
-]
+];
 
 function _simpleChange(previousValue, currentValue) {
   var index = _simpleChangesIndex++ % 20;
@@ -73,16 +48,6 @@ function _simpleChange(previousValue, currentValue) {
   s.currentValue = currentValue;
   return s;
 }
-
-function _changeRecord(bindingMemento, change) {
-  var index = _changeRecordsIndex++ % 20;
-  var s = _changeRecords[index];
-  s.bindingMemento = bindingMemento;
-  s.change = change;
-  return s;
-}
-
-var _singleElementList = [null];
 
 export class ChangeDetectionUtil {
   static unitialized() {
@@ -144,16 +109,6 @@ export class ChangeDetectionUtil {
     return obj[args[0]];
   }
 
-  static findContext(name:string, c){
-    while (c instanceof ContextWithVariableBindings) {
-      if (c.hasBinding(name)) {
-        return c;
-      }
-      c = c.parent;
-    }
-    return c;
-  }
-
   static noChangeMarker(value):boolean {
     return value === NO_CHANGE;
   }
@@ -162,29 +117,19 @@ export class ChangeDetectionUtil {
     throw new ExpressionChangedAfterItHasBeenChecked(proto, change);
   }
 
+  static changeDetectionMode(strategy:string) {
+    return strategy == ON_PUSH ? CHECK_ONCE : CHECK_ALWAYS;
+  }
+
   static simpleChange(previousValue:any, currentValue:any):SimpleChange {
     return _simpleChange(previousValue, currentValue);
   }
 
-  static changeRecord(memento:any, change:any):ChangeRecord {
-    return _changeRecord(memento, change);
-  }
-
-  static simpleChangeRecord(memento:any, previousValue:any, currentValue:any):ChangeRecord {
-    return _changeRecord(memento, _simpleChange(previousValue, currentValue));
-  }
-
-  static addRecord(updatedRecords:List, changeRecord:ChangeRecord):List {
-    if (isBlank(updatedRecords)) {
-      updatedRecords = _singleElementList;
-      updatedRecords[0] = changeRecord;
-
-    } else if (updatedRecords === _singleElementList) {
-      updatedRecords = [_singleElementList[0], changeRecord];
-
-    } else {
-      ListWrapper.push(updatedRecords, changeRecord);
+  static addChange(changes, propertyName:string, change){
+    if (isBlank(changes)) {
+      changes = {};
     }
-    return updatedRecords;
+    changes[propertyName] = change;
+    return changes;
   }
 }

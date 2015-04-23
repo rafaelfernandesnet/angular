@@ -1,13 +1,13 @@
-import {Decorator} from 'angular2/core';
+import {Decorator} from 'angular2/angular2';
 
-import {ControlDirective} from 'angular2/forms';
-import * as validators from 'angular2/forms';
+import {Validators} from './validators';
+import {ControlDirective} from './directives';
 
 @Decorator({
   selector: '[required]'
 })
 export class RequiredValidatorDirective {
   constructor(c:ControlDirective) {
-    c.validator = validators.compose([c.validator, validators.required]);
+    c.validator = Validators.compose([c.validator, Validators.required]);
   }
 }

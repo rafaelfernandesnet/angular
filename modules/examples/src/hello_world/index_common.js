@@ -1,4 +1,5 @@
-import {bootstrap, Component, Decorator, Template, NgElement} from 'angular2/angular2';
+import {Component, Decorator, View, NgElement} from 'angular2/angular2';
+import {Injectable} from 'angular2/di';
 
 // Angular 2.0 supports 3 basic types of directives:
 // - Component - the basic building blocks of Angular 2.0 apps. Backed by
@@ -15,21 +16,21 @@ import {bootstrap, Component, Decorator, Template, NgElement} from 'angular2/ang
   selector: 'hello-app',
   // These are services that would be created if a class in the component's
   // template tries to inject them.
-  componentServices: [GreetingService]
+  injectables: [GreetingService]
 })
 // The template for the component.
-@Template({
+@View({
   // Expressions in the template (like {{greeting}}) are evaluated in the
   // context of the HelloCmp class below.
-  inline: `<div class="greeting">{{greeting}} <span red>world</span>!</div>
-           <button class="changeButton" (click)="changeGreeting()">change greeting</button>`,
+  template: `<div class="greeting">{{greeting}} <span red>world</span>!</div>
+           <button class="changeButton" (click)="changeGreeting()">change greeting</button><content></content>`,
   // All directives used in the template need to be specified. This allows for
   // modularity (RedDec can only be used in this template)
   // and better tooling (the template can be invalidated if the attribute is
   // misspelled).
   directives: [RedDec]
 })
-class HelloCmp {
+export class HelloCmp {
   greeting: string;
   constructor(service: GreetingService) {
     this.greeting = service.greeting;
@@ -52,21 +53,11 @@ class RedDec {
   }
 }
 
-// A service used by the HelloCmp component.
+// A service available to the Injector, used by the HelloCmp component.
+@Injectable()
 class GreetingService {
   greeting:string;
   constructor() {
     this.greeting = 'hello';
   }
-}
-
-export function main() {
-  // Bootstrapping only requires specifying a root component.
-  // The boundary between the Angular application and the rest of the page is
-  // the shadowDom of this root component.
-  // The selector of the component passed in is used to find where to insert the
-  // application.
-  // You can use the light dom of the <hello-app> tag as temporary content (for
-  // example 'Loading...') before the application is ready.
-  bootstrap(HelloCmp);
 }

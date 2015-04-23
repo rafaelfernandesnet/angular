@@ -1,13 +1,8 @@
-import {int} from 'angular2/src/facade/lang';
-import {reflector} from 'angular2/src/reflection/reflection';
-import {getIntParameter, bindAction} from 'angular2/src/test_lib/benchmark_util';
-import {bootstrap, Component, Viewport, Template, ViewContainer, Compiler}
-    from 'angular2/angular2';
-import {PromiseWrapper} from 'angular2/src/facade/async';
+import {Component, View} from 'angular2/angular2';
 import {ListWrapper, MapWrapper} from 'angular2/src/facade/collection';
 import {Company, Opportunity, Offering, Account, CustomDate, STATUS_LIST}
     from './common';
-import {Foreach} from 'angular2/directives';
+import {For} from 'angular2/directives';
 
 export class HasStyle {
   style:Map;
@@ -21,14 +16,47 @@ export class HasStyle {
   }
 }
 
+@Component({
+  selector: 'company-name',
+  properties: {
+    'width': 'cell-width',
+    'company': 'company'
+  }
+})
+@View({
+    directives: [],
+    template: `<div [style]="style">{{company.name}}</div>`
+})
 export class CompanyNameComponent extends HasStyle {
   company:Company;
 }
 
+@Component({
+  selector: 'opportunity-name',
+  properties: {
+    'width': 'cell-width',
+    'opportunity': 'opportunity'
+  }
+})
+@View({
+    directives: [],
+    template: `<div [style]="style">{{opportunity.name}}</div>`
+})
 export class OpportunityNameComponent extends HasStyle {
   opportunity:Opportunity;
 }
 
+@Component({
+  selector: 'offering-name',
+  properties: {
+    'width': 'cell-width',
+    'offering': 'offering'
+  }
+})
+@View({
+    directives: [],
+    template: `<div [style]="style">{{offering.name}}</div>`
+})
 export class OfferingNameComponent extends HasStyle {
   offering:Offering;
 }
@@ -40,6 +68,25 @@ export class Stage {
   apply:Function;
 }
 
+@Component({
+  selector: 'stage-buttons',
+  properties: {
+    'width': 'cell-width',
+    'offering': 'offering'
+  }
+})
+@View({
+    directives: [For],
+    template: `
+      <div [style]="style">
+          <button template="for #stage of stages"
+                  [disabled]="stage.isDisabled"
+                  [style]="stage.style"
+                  on-click="setStage(stage)">
+            {{stage.name}}
+          </button>
+      </div>`
+})
 export class StageButtonsComponent extends HasStyle {
   _offering:Offering;
   stages:List<Stage>;
@@ -80,10 +127,37 @@ export class StageButtonsComponent extends HasStyle {
   }
 }
 
+@Component({
+  selector: 'account-cell',
+  properties: {
+    'width': 'cell-width',
+    'account': 'account'
+  }
+})
+@View({
+    directives: [],
+    template: `
+      <div [style]="style">
+        <a href="/account/{{account.accountId}}">
+          {{account.accountId}}
+        </a>
+      </div>`
+})
 export class AccountCellComponent extends HasStyle {
   account:Account;
 }
 
+@Component({
+  selector: 'formatted-cell',
+  properties: {
+    'width': 'cell-width',
+    'value': 'value'
+  }
+})
+@View({
+    directives: [],
+    template: `<div [style]="style">{{formattedValue}}</div>`
+})
 export class FormattedCellComponent extends HasStyle {
   formattedValue:string;
 
@@ -94,127 +168,4 @@ export class FormattedCellComponent extends HasStyle {
       this.formattedValue = value.toString();
     }
   }
-}
-
-export function setupReflectorForCells() {
-  reflector.registerType(CompanyNameComponent, {
-    'factory': () => new CompanyNameComponent(),
-    'parameters': [],
-    'annotations': [
-      new Component({
-        selector: 'company-name',
-        bind: {
-          'width': 'cell-width',
-          'company': 'company'
-        }
-      }),
-      new Template({
-          directives: [],
-          inline: `<div [style]="style">{{company.name}}</div>`
-      })
-    ]
-  });
-
-  reflector.registerType(OpportunityNameComponent, {
-    'factory': () => new OpportunityNameComponent(),
-    'parameters': [],
-    'annotations': [
-      new Component({
-        selector: 'opportunity-name',
-        bind: {
-          'width': 'cell-width',
-          'opportunity': 'opportunity'
-        }
-      }),
-      new Template({
-          directives: [],
-          inline: `<div [style]="style">{{opportunity.name}}</div>`
-      })
-    ]
-  });
-
-  reflector.registerType(OfferingNameComponent, {
-    'factory': () => new OfferingNameComponent(),
-    'parameters': [],
-    'annotations': [
-      new Component({
-        selector: 'offering-name',
-        bind: {
-          'width': 'cell-width',
-          'offering': 'offering'
-        }
-      }),
-      new Template({
-          directives: [],
-          inline: `<div [style]="style">{{offering.name}}</div>`
-      })
-    ]
-  });
-
-  reflector.registerType(StageButtonsComponent, {
-    'factory': () => new StageButtonsComponent(),
-    'parameters': [],
-    'annotations': [
-      new Component({
-        selector: 'stage-buttons',
-        bind: {
-          'width': 'cell-width',
-          'offering': 'offering'
-        }
-      }),
-      new Template({
-          directives: [Foreach],
-          inline: `
-            <div [style]="style">
-                <button template="foreach #stage in stages"
-                        [disabled]="stage.isDisabled"
-                        [style]="stage.style"
-                        on-click="setStage(stage)">
-                  {{stage.name}}
-                </button>
-            </div>`
-      })
-    ]
-  });
-
-  reflector.registerType(AccountCellComponent, {
-    'factory': () => new AccountCellComponent(),
-    'parameters': [],
-    'annotations': [
-      new Component({
-        selector: 'account-cell',
-        bind: {
-          'width': 'cell-width',
-          'account': 'account'
-        }
-      }),
-      new Template({
-          directives: [],
-          inline: `
-            <div [style]="style">
-              <a href="/account/{{account.accountId}}">
-                {{account.accountId}}
-              </a>
-            </div>`
-      })
-    ]
-  });
-
-  reflector.registerType(FormattedCellComponent, {
-    'factory': () => new FormattedCellComponent(),
-    'parameters': [],
-    'annotations': [
-      new Component({
-        selector: 'formatted-cell',
-        bind: {
-          'width': 'cell-width',
-          'value': 'value'
-        }
-      }),
-      new Template({
-          directives: [],
-          inline: `<div [style]="style">{{formattedValue}}</div>`
-      })
-    ]
-  });
 }

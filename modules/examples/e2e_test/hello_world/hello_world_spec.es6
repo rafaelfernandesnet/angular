@@ -4,7 +4,7 @@ describe('hello world', function () {
   afterEach(testUtil.verifyNoBrowserErrors);
 
   describe('static reflection', function() {
-    var URL = 'examples/src/hello_world/index_static.html';
+    var URL = 'examples/src/hello_world/index.html';
 
     it('should greet', function() {
       browser.get(URL);
@@ -21,7 +21,7 @@ describe('hello world', function () {
   });
 
   describe('dynamic reflection', function() {
-    var URL = 'examples/src/hello_world/index.html';
+    var URL = 'examples/src/hello_world/index_dynamic.html';
 
     it('should greet', function() {
       browser.get(URL);
@@ -40,9 +40,9 @@ describe('hello world', function () {
 });
 
 function getComponentText(selector, innerSelector) {
-  return browser.executeScript('return document.querySelector("'+selector+'").shadowRoot.querySelector("'+innerSelector+'").textContent');
+  return browser.executeScript('return document.querySelector("'+selector+'").querySelector("'+innerSelector+'").textContent');
 }
 
 function clickComponentButton(selector, innerSelector) {
-  return browser.executeScript('return document.querySelector("'+selector+'").shadowRoot.querySelector("'+innerSelector+'").click()');
+  return browser.executeScript('return document.querySelector("'+selector+'").querySelector("'+innerSelector+'").click()');
 }

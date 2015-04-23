@@ -1,6 +1,5 @@
 import {Decorator, Viewport} from 'angular2/src/core/annotations/annotations';
 import {ViewContainer} from 'angular2/src/core/compiler/view_container';
-import {NgElement} from 'angular2/src/core/dom/element';
 import {isPresent, isBlank, normalizeBlank} from 'angular2/src/facade/lang';
 import {ListWrapper, List, MapWrapper, Map} from 'angular2/src/facade/collection';
 import {Parent} from 'angular2/src/core/annotations/visibility';
@@ -20,7 +19,7 @@ import {Parent} from 'angular2/src/core/annotations/visibility';
  * evaluated. If a matching expression is not found via a when attribute then an element with the
  * default attribute is displayed.
  *
- * Example:
+ * # Example:
  *
  * ```
  * <ANY [switch]="expression">
@@ -29,10 +28,12 @@ import {Parent} from 'angular2/src/core/annotations/visibility';
  *   <template [switch-default]>...</template>
  * </ANY>
  * ```
+ *
+ * @exportedAs angular2/directives
  */
 @Decorator({
   selector: '[switch]',
-  bind: {
+  properties: {
     'value': 'switch'
   }
 })
@@ -64,7 +65,7 @@ export class Switch {
     this._switchValue = value;
   }
 
-  _onWhenValueChanged(oldWhen, newWhen, viewContainer: ViewContainer) {
+  _onWhenValueChanged(oldWhen, newWhen, viewContainer: ViewContainer):void {
     this._deregisterViewContainer(oldWhen, viewContainer);
     this._registerViewContainer(newWhen, viewContainer);
 
@@ -87,7 +88,7 @@ export class Switch {
     }
   }
 
-  _emptyAllActiveViewContainers() {
+  _emptyAllActiveViewContainers():void {
     var activeContainers = this._activeViewContainers;
     for (var i = 0; i < activeContainers.length; i++) {
       activeContainers[i].remove();
@@ -95,7 +96,7 @@ export class Switch {
     this._activeViewContainers = ListWrapper.create();
   }
 
-  _activateViewContainers(containers: List<ViewContainer>) {
+  _activateViewContainers(containers: List<ViewContainer>):void {
     // TODO(vicb): assert(this._activeViewContainers.length === 0);
     if (isPresent(containers)) {
       for (var i = 0; i < containers.length; i++) {
@@ -105,7 +106,7 @@ export class Switch {
     }
   }
 
-  _registerViewContainer(value, container: ViewContainer) {
+  _registerViewContainer(value, container: ViewContainer): void {
     var containers = MapWrapper.get(this._valueViewContainers, value);
     if (isBlank(containers)) {
       containers = ListWrapper.create();
@@ -114,7 +115,7 @@ export class Switch {
     ListWrapper.push(containers, container);
   }
 
-  _deregisterViewContainer(value, container: ViewContainer) {
+  _deregisterViewContainer(value, container: ViewContainer):void {
     // `_whenDefault` is used a marker for non-registered whens
     if (value == _whenDefault) return;
     var containers = MapWrapper.get(this._valueViewContainers, value);
@@ -140,10 +141,12 @@ export class Switch {
  * // match against a constant string
  * <template [switch-when]="'stringValue'">...</template>
  * ```
+ *
+ * @exportedAs angular2/directives
  */
 @Viewport({
   selector: '[switch-when]',
-  bind: {
+  properties: {
     'when' : 'switch-when'
   }
 })
@@ -152,7 +155,7 @@ export class SwitchWhen {
   _switch: Switch;
   _viewContainer: ViewContainer;
 
-  constructor(el: NgElement, viewContainer: ViewContainer, @Parent() sswitch: Switch) {
+  constructor(viewContainer: ViewContainer, @Parent() sswitch: Switch) {
     // `_whenDefault` is used as a marker for a not yet initialized value
     this._value = _whenDefault;
     this._switch = sswitch;
@@ -176,6 +179,8 @@ export class SwitchWhen {
  * ```
  * <template [switch-default]>...</template>
  * ```
+ *
+ * @exportedAs angular2/directives
  */
 @Viewport({
   selector: '[switch-default]'

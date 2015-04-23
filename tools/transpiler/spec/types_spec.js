@@ -22,7 +22,6 @@ function namedObjectType({a,b}:{a:A,b:B<C>}) {
 class Bar {
   constructor({
       selector,
-      lightDomServices,
       implementsTypes
     })
   {
@@ -43,11 +42,7 @@ class Foo {
   }
 
   typedVariables() {
-    // TODO(vojta): test this
     var foo:string = 'foo';
-    var typed:boolean, untyped;
-    var oneTyped:string = 'one',
-        another: boolean = true;
   }
 }
 

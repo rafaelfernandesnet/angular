@@ -14,7 +14,9 @@ describe('ng2 di benchmark', function () {
       params: [{
         name: 'iterations', value: 20000, scale: 'linear'
       }],
-      microIterations: 20000
+      microMetrics: {
+        'injectAvg': 'avg time for injection (in ms)'
+      }
     }).then(done, done.fail);
   });
 
@@ -23,7 +25,12 @@ describe('ng2 di benchmark', function () {
       url: URL,
       buttons: ['#getByKey'],
       id: 'ng2.di.getByKey',
-      microIterations: 20000
+      params: [{
+        name: 'iterations', value: 20000, scale: 'linear'
+      }],
+      microMetrics: {
+        'injectAvg': 'avg time for injection (in ms)'
+      }
     }).then(done, done.fail);
   });
 
@@ -32,7 +39,12 @@ describe('ng2 di benchmark', function () {
       url: URL,
       buttons: ['#getChild'],
       id: 'ng2.di.getChild',
-      microIterations: 20000
+      params: [{
+        name: 'iterations', value: 20000, scale: 'linear'
+      }],
+      microMetrics: {
+        'injectAvg': 'avg time for getChild (in ms)'
+      }
     }).then(done, done.fail);
   });
 
@@ -41,7 +53,47 @@ describe('ng2 di benchmark', function () {
       url: URL,
       buttons: ['#instantiate'],
       id: 'ng2.di.instantiate',
-      microIterations: 10000
+      params: [{
+        name: 'iterations', value: 10000, scale: 'linear'
+      }],
+      microMetrics: {
+        'injectAvg': 'avg time for instantiate (in ms)'
+      }
+    }).then(done, done.fail);
+  });
+
+  /**
+   * This benchmark measures the cost of creating a new injector with a mix
+   * of binding types: Type, unresolved, unflattened.
+   */
+  it('should log the stats for createVariety', function(done) {
+    perfUtil.runClickBenchmark({
+      url: URL,
+      buttons: ['#createVariety'],
+      id: 'ng2.di.createVariety',
+      params: [{
+        name: 'iterations', value: 10000, scale: 'linear'
+      }],
+      microMetrics: {
+        'injectAvg': 'avg time for createVariety (in ms)'
+      }
+    }).then(done, done.fail);
+  });
+
+  /**
+   * Same as 'createVariety' benchmark but operates on fully resolved bindings.
+   */
+  it('should log the stats for createVarietyResolved', function(done) {
+    perfUtil.runClickBenchmark({
+      url: URL,
+      buttons: ['#createVarietyResolved'],
+      id: 'ng2.di.createVarietyResolved',
+      params: [{
+        name: 'iterations', value: 10000, scale: 'linear'
+      }],
+      microMetrics: {
+        'injectAvg': 'avg time for createVarietyResolved (in ms)'
+      }
     }).then(done, done.fail);
   });
 

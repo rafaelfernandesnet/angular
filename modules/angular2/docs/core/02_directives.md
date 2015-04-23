@@ -10,7 +10,7 @@ There are three different kinds of directives (described in more detail in later
 
 1. *Decorators*: can be placed on any DOM element and can be combined with other directives.
 2. *Components*: Components have an encapsulated view and can configure injectors.
-3. *Viewport*: is responsible for adding or removing child views in a parent view. (i.e. foreach, if)
+3. *Viewport*: is responsible for adding or removing child views in a parent view. (i.e. for, if)
 
 
 
@@ -50,7 +50,7 @@ These CSS selectors will match:
 
 CSS Selectors can be combined:
 * `input[type=text]`: Triggers on element name `input` which is of `type` `text`.
-* `input[type=text], textarea`: triggers on element name `input` which is of `type` `text` or element name `textarea`
+* `input[type=text], textarea`: triggers on element name `input` which is of `type` `text` or element name `textarea`.
 
 
 
@@ -67,10 +67,10 @@ Here is a trivial example of a tooltip decorator. The directive will log a toolt
 ```
 @Decorator({
   selector: '[tooltip]', // CSS Selector which triggers the decorator
-  bind: {                // List which properties need to be bound
+  properties: {          // List which properties need to be bound
     text: 'tooltip'      //  - DOM element tooltip property should be 
   },                     //    mapped to the directive text property.
-  event: {               // List which events need to be mapped.
+  hostListeners: {       // List which events need to be mapped.
     mouseover: 'show'    //  - Invoke the show() method every time 
   }                      //    the mouseover event is fired.
 })
@@ -112,13 +112,13 @@ Example of a component:
 ```
 @Component({                      | Component annotation
   selector: 'pane',               | CSS selector on <pane> element
-  bind: {                         | List which property need to be bound
+  properties: {                   | List which property need to be bound
     'title': 'title',             |  - title mapped to component title
     'open': 'open'                |  - open attribute mapped to component's open property
   },                              |
 })                                |
-@Template({                       | Template annotation
-  url: 'pane.html'                |  - URL of template HTML
+@View({                           | View annotation
+  templateUrl: 'pane.html'                |  - URL of template HTML
 })                                |
 class Pane {                      | Component controller class
   title:string;                   |  - title property 
@@ -140,7 +140,7 @@ class Pane {                      | Component controller class
 ```
 <div class="outer">
   <h1>{{title}}</h1>
-  <div class="inner" [hidden]="!visible">
+  <div class="inner" [hidden]="!open">
     <content></content>
   </div>
 </div>
@@ -165,7 +165,7 @@ Example of usage:
 
 ## Viewport
 
-Viewport is a directive which can control instantiation of child views which are then inserted into the DOM. (Examples are `if` and `foreach`.) 
+Viewport is a directive which can control instantiation of child views which are then inserted into the DOM. (Examples are `if` and `for`.) 
 
 * Viewports can only be placed on `<template>` elements (or the short hand version which uses `<element template>` attribute.)
 * Only one viewport can be present per DOM template element.
@@ -179,7 +179,7 @@ Viewport is a directive which can control instantiation of child views which are
 ```
 @Viewport({
   selector: '[if]',
-  bind: {
+  properties: {
     'condition': 'if'
   }
 })
@@ -220,7 +220,7 @@ To better understand the kinds of injections which are supported in Angular we h
 
 ### Injecting Services
 
-Service injection is the most straight forward kind of injection which Angular supports. It involves a component configuring the `componentServices` and then letting the directive ask for the configured service. 
+Service injection is the most straight forward kind of injection which Angular supports. It involves a component configuring the `injectables` and then letting the directive ask for the configured service. 
 
 This example illustrates how to inject `MyService` into `House` directive.
 
@@ -231,10 +231,10 @@ class MyService {}                   | Assume a service which needs to be inject
                                      |
 @Component({                         | Assume a top level application component which 
   selector: 'my-app',                | configures the services to be injected.
-  componentServices: [MyService]     | 
+  injectables: [MyService]           | 
 })                                   |
-@Template({                          | Assume we have a template that needs to be
-  url: 'my_app.html',                | configured with directives to be injected.
+@View({                              | Assume we have a template that needs to be
+  templateUrl: 'my_app.html',                | configured with directives to be injected.
   directives: [House]                | 
 })                                   |
 class MyApp {}                       |
@@ -277,12 +277,12 @@ Here is an example of the kinds of injections which can be achieved:
 
 ```
 @Component({                         |
-  selector: 'my-app',                | 
-  template: new TemplateConfig({     | 
-    url: 'my_app.html',              |
-    directives: [Form, FieldSet,     |
-      Field, Primary]                |
-  })                                 |
+  selector: 'my-app'                 |
+})                                   | 
+@View({                              | 
+  templateUrl: 'my_app.html',        |
+  directives: [Form, FieldSet,       |
+    Field, Primary]                  |
 })                                   |
 class MyApp {}                       |
                                      |
@@ -322,8 +322,8 @@ Assume the following DOM structure for `my_app.html`:
     <fieldset>                 |
        <field primary></field> |
        <field></field>         |
-    </div>                     |
-  </fieldset>                  |
+    </fieldset>                |
+  </div>                       |
 </form>                        |  
 ```
 

@@ -1,4 +1,15 @@
-import {describe, ddescribe, it, iit, xit, expect, beforeEach, afterEach} from 'angular2/test_lib';
+import {
+  afterEach,
+  AsyncTestCompleter,
+  beforeEach,
+  ddescribe,
+  describe,
+  expect,
+  iit,
+  inject,
+  it,
+  xit,
+} from 'angular2/test_lib';
 
 import { DateWrapper, Json, RegExpWrapper, isPresent } from 'angular2/src/facade/lang';
 import { PromiseWrapper } from 'angular2/src/facade/async';
@@ -6,7 +17,8 @@ import { PromiseWrapper } from 'angular2/src/facade/async';
 import {
   bind, Injector,
   SampleDescription,
-  MeasureValues
+  MeasureValues,
+  Options
 } from 'benchpress/common';
 
 
@@ -21,7 +33,8 @@ export function main() {
         JsonFileReporter.BINDINGS,
         bind(SampleDescription).toValue(new SampleDescription(sampleId, descriptions, metrics)),
         bind(JsonFileReporter.PATH).toValue(path),
-        bind(JsonFileReporter.WRITE_FILE).toValue((filename, content) => {
+        bind(Options.NOW).toValue( () => DateWrapper.fromMillis(1234) ),
+        bind(Options.WRITE_FILE).toValue((filename, content) => {
           loggedFile = {
             'filename': filename,
             'content': content
@@ -29,10 +42,10 @@ export function main() {
           return PromiseWrapper.resolve(null);
         })
       ];
-      return new Injector(bindings).get(JsonFileReporter);
+      return Injector.resolveAndCreate(bindings).get(JsonFileReporter);
     }
 
-    it('should write all data into a file', (done) => {
+    it('should write all data into a file', inject([AsyncTestCompleter], (async) => {
       createReporter({
         sampleId: 'someId',
         descriptions: [{ 'a': 2 }],
@@ -85,8 +98,8 @@ export function main() {
           }
         ]
       });
-      done();
-    });
+      async.done();
+    }));
 
   });
 }

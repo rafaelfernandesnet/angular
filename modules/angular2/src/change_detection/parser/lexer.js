@@ -1,5 +1,6 @@
+import {Injectable} from 'angular2/di';
 import {List, ListWrapper, SetWrapper} from "angular2/src/facade/collection";
-import {int, FIELD, NumberWrapper, StringJoiner, StringWrapper} from "angular2/src/facade/lang";
+import {int, NumberWrapper, StringJoiner, StringWrapper} from "angular2/src/facade/lang";
 
 export const TOKEN_TYPE_CHARACTER  = 1;
 export const TOKEN_TYPE_IDENTIFIER = 2;
@@ -8,6 +9,7 @@ export const TOKEN_TYPE_STRING     = 4;
 export const TOKEN_TYPE_OPERATOR   = 5;
 export const TOKEN_TYPE_NUMBER     = 6;
 
+@Injectable()
 export class Lexer {
   text:string;
   tokenize(text:string):List {
@@ -177,7 +179,6 @@ const $a =  97, $b =  98, $c =  99, $d = 100, $e = 101, $f = 102, $g = 103,
 export const $LBRACE = 123;
 export const $BAR    = 124;
 export const $RBRACE = 125;
-const $TILDE  = 126;
 const $NBSP   = 160;
 
 
@@ -273,8 +274,6 @@ class _Scanner {
         return this.scanComplexOperator(start, $AMPERSAND, '&', '&');
       case $BAR:
         return this.scanComplexOperator(start, $BAR, '|', '|');
-      case $TILDE:
-        return this.scanComplexOperator(start, $SLASH, '~', '/');
       case $NBSP:
         while (isWhitespace(this.peek)) this.advance();
         return this.scanToken();
@@ -302,7 +301,7 @@ class _Scanner {
     assert(this.peek == StringWrapper.charCodeAt(one, 0));
     this.advance();
     var str:string = one;
-    if (this.peek == code) {
+    while (this.peek == code) {
       this.advance();
       str += two;
     }
@@ -453,12 +452,13 @@ var OPERATORS = SetWrapper.createFromList([
   '-',
   '*',
   '/',
-  '~/',
   '%',
   '^',
   '=',
   '==',
   '!=',
+  '===',
+  '!==',
   '<',
   '>',
   '<=',
@@ -478,5 +478,5 @@ var KEYWORDS = SetWrapper.createFromList([
     'null',
     'undefined',
     'true',
-    'false',
+    'false'
 ]);

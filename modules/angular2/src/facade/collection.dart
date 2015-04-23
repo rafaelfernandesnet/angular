@@ -1,6 +1,6 @@
 library facade.collection;
 
-import 'dart:collection' show HashMap, IterableBase, Iterator;
+import 'dart:collection' show IterableBase, Iterator;
 export 'dart:core' show Map, List, Set;
 import 'dart:math' show max, min;
 
@@ -30,10 +30,10 @@ class IterableMap extends IterableBase<List> {
 }
 
 class MapWrapper {
-  static HashMap create() => new HashMap();
-  static HashMap clone(Map m) => new HashMap.from(m);
-  static HashMap createFromStringMap(HashMap m) => m;
-  static HashMap createFromPairs(List pairs) => pairs.fold({}, (m, p) {
+  static Map create() => {};
+  static Map clone(Map m) => new Map.from(m);
+  static Map createFromStringMap(Map m) => m;
+  static Map createFromPairs(List pairs) => pairs.fold({}, (m, p) {
     m[p[0]] = p[1];
     return m;
   });
@@ -63,18 +63,23 @@ class MapWrapper {
 }
 
 class StringMapWrapper {
-  static HashMap create() => new HashMap();
+  static Map create() => {};
   static bool contains(Map map, key) => map.containsKey(key);
   static get(Map map, key) => map[key];
   static void set(Map map, key, value) {
     map[key] = value;
   }
+  static void delete(Map m, k) {
+      m.remove(k);
+  }
   static void forEach(Map m, fn(v, k)) {
     m.forEach((k, v) => fn(v, k));
   }
-  static HashMap merge(Map a, Map b) {
-    var m = new HashMap.from(a);
-    b.forEach((k, v) => m[k] = v);
+  static Map merge(Map a, Map b) {
+    var m = new Map.from(a);
+    if (b != null) {
+      b.forEach((k, v) => m[k] = v);
+    }
     return m;
   }
   static bool isEmpty(Map m) => m.isEmpty;
@@ -91,6 +96,9 @@ class ListWrapper {
   static bool contains(List m, k) => m.contains(k);
   static List map(list, fn(item)) => list.map(fn).toList();
   static List filter(List list, bool fn(item)) => list.where(fn).toList();
+  static int indexOf(List list, value, [int startIndex = 0]) => list.indexOf(value, startIndex);
+  static int lastIndexOf(List list, value, [int startIndex = null]) =>
+      list.lastIndexOf(value, startIndex == null ? list.length : startIndex);
   static find(List list, bool fn(item)) =>
       list.firstWhere(fn, orElse: () => null);
   static bool any(List list, bool fn(item)) => list.any(fn);
@@ -127,16 +135,7 @@ class ListWrapper {
   static String join(List l, String s) => l.join(s);
   static bool isEmpty(Iterable list) => list.isEmpty;
   static void fill(List l, value, [int start = 0, int end]) {
-    // JS semantics
-    // see https://github.com/google/traceur-compiler/blob/81880cd3f17bac7de90a4cd0339e9f1a9f61d24c/src/runtime/polyfills/Array.js#L94
-    int len = l.length;
-    start = start < 0 ? max(len + start, 0) : min(start, len);
-    if (end == null) {
-      end = len;
-    } else {
-      end = end < 0 ? max(len + end, 0) : min(end, len);
-    }
-    l.fillRange(start, end, value);
+    l.fillRange(_startOffset(l, start), _endOffset(l, end), value);
   }
   static bool equals(List a, List b) {
     if (a.length != b.length) return false;
@@ -145,11 +144,33 @@ class ListWrapper {
     }
     return true;
   }
-  static List slice(List l, int from, int to) {
-    return l.sublist(from, to);
+  static List slice(List l, [int from = 0, int to]) {
+    return l.sublist(_startOffset(l, from), _endOffset(l, to));
+  }
+  static List splice(List l, int from, int length) {
+    from = _startOffset(l, from);
+    var to = from + length;
+    var sub = l.sublist(from, to);
+    l.removeRange(from, to);
+    return sub;
   }
   static void sort(List l, compareFn(a,b)) {
     l.sort(compareFn);
+  }
+
+  // JS splice, slice, fill functions can take start < 0 which indicates a position relative to
+  // the end of the list
+  static int _startOffset(List l, int start) {
+    int len = l.length;
+    return start = start < 0 ? max(len + start, 0) : min(start, len);
+  }
+
+  // JS splice, slice, fill functions can take end < 0 which indicates a position relative to
+  // the end of the list
+  static int _endOffset(List l, int end) {
+    int len = l.length;
+    if (end == null) return len;
+    return end < 0 ? max(len + end, 0) : min(end, len);
   }
 }
 

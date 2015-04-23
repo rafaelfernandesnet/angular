@@ -27,7 +27,7 @@ describe('transpile to dart', function(){
         "var s1:string = \"${a}\";" +
         "var s2:string = '\\${a}';" +
         "var s3:string = '$a';");
-      expect(result.js).toBe("library test_dart;\n" +
+      expect(result.js).toBe("library test;\n" +
       "num a = 1;\n" +
       "String s1 = \"\\${a}\";\n" +
       "String s2 = '\\${a}';\n" +
@@ -39,7 +39,7 @@ describe('transpile to dart', function(){
         "var a:number = 1;" +
         "var s1:string = `$a`;" +
         "var s2:string = `\\$a`;");
-      expect(result.js).toBe("library test_dart;\n" +
+      expect(result.js).toBe("library test;\n" +
       "num a = 1;\n" +
       "String s1 = '''\\$a''';\n" +
       "String s2 = '''\\$a''';\n");
@@ -49,7 +49,7 @@ describe('transpile to dart', function(){
       var result = compiler.compile(options, "test.js",
         "var a:number = 1;" +
         "var s1:string = `${a}`;");
-      expect(result.js).toBe("library test_dart;\n" +
+      expect(result.js).toBe("library test;\n" +
       "num a = 1;\n" +
       "String s1 = '''${a}''';\n");
     });
@@ -60,25 +60,31 @@ describe('transpile to dart', function(){
     it('should support types without generics', function() {
       var result = compiler.compile(options, "test.js",
         "var a:List = [];");
-      expect(result.js).toBe("library test_dart;\nList a = [];\n");
+      expect(result.js).toBe("library test;\nList a = [];\n");
     });
 
     it('should support one level generics', function() {
       var result = compiler.compile(options, "test.js",
         "var a:List<string> = [];");
-      expect(result.js).toBe("library test_dart;\nList<String> a = [];\n");
+      expect(result.js).toBe("library test;\nList<String> a = [];\n");
     });
 
     it('should support multiple one level generics', function() {
       var result = compiler.compile(options, "test.js",
         "var a:List<A,B> = [];");
-      expect(result.js).toBe("library test_dart;\nList<A, B> a = [];\n");
+      expect(result.js).toBe("library test;\nList<A, B> a = [];\n");
     });
 
     it('should support nested generics', function() {
       var result = compiler.compile(options, "test.js",
         "var a:List<A<B>> = [];");
-      expect(result.js).toBe("library test_dart;\nList<A<B>> a = [];\n");
+      expect(result.js).toBe("library test;\nList<A<B>> a = [];\n");
+    });
+
+    it('should add dart suffix to reserved words', function() {
+      var result = compiler.compile(options, "project/if.js",
+        "var a;");
+      expect(result.js).toBe("library project.if_dart;\nvar a;\n");
     });
   });
 });
@@ -105,15 +111,17 @@ describe('transpile to es6', function() {
   it('should allow super() calls when transpiling to ES6 with source maps', function() {
     options = merge(options, {sourceMaps: true});
     var result = compiler.compile(options, "test.js",
-      "class Test {" +
+      "class Base {}\n" +
+      "class Test extends Base {" +
       "  constructor() { super(); }" +
       "}");
-    expect(result.js).toBe("class Test {\n" +
+    expect(result.js).toBe("class Base {}\n" +
+      "class Test extends Base {\n" +
       "  constructor() {\n"+
       "    super();\n"+
       "  }\n"+
-      "}\n\n"+
-      "//# sourceMappingURL=test.map\n");
+      "}\n"+
+      "//# sourceMappingURL=test.js.map\n");
   });
 
   it('should convert types to expressions', function() {

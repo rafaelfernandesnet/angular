@@ -1,4 +1,5 @@
-import {FIELD, int, isBlank, isPresent,  BaseException, StringWrapper, RegExpWrapper} from 'angular2/src/facade/lang';
+import {Injectable} from 'angular2/di';
+import {int, isBlank, isPresent,  BaseException, StringWrapper, RegExpWrapper} from 'angular2/src/facade/lang';
 import {ListWrapper, List} from 'angular2/src/facade/collection';
 import {Lexer, EOF, Token, $PERIOD, $COLON, $SEMICOLON, $LBRACKET, $RBRACKET,
   $COMMA, $LBRACE, $RBRACE, $LPAREN, $RPAREN} from './lexer';
@@ -32,6 +33,7 @@ var _implicitReceiver = new ImplicitReceiver();
 var INTERPOLATION_REGEXP = RegExpWrapper.create('\\{\\{(.*?)\\}\\}');
 var QUOTE_REGEXP = RegExpWrapper.create("'");
 
+@Injectable()
 export class Parser {
   _lexer:Lexer;
   _reflector:Reflector;
@@ -56,7 +58,7 @@ export class Parser {
     if (ListWrapper.isEmpty(pipes)) return bindingAst;
 
     var res = ListWrapper.reduce(pipes,
-      (result, currentPipeName) => new Pipe(result, currentPipeName, []),
+      (result, currentPipeName) => new Pipe(result, currentPipeName, [], false),
       bindingAst.ast);
     return new ASTWithSource(res, bindingAst.source, bindingAst.location);
   }
@@ -209,18 +211,11 @@ class _ParseAST {
 
   parsePipe() {
     var result = this.parseExpression();
-    while (this.optionalOperator("|")) {
-      if (this.parseAction) {
-        this.error("Cannot have a pipe in an action expression");
-      }
-      var name = this.expectIdentifierOrKeyword();
-      var args = ListWrapper.create();
-      while (this.optionalCharacter($COLON)) {
-        ListWrapper.push(args, this.parseExpression());
-      }
-      result = new Pipe(result, name, args);
+    if (this.optionalOperator("|")) {
+      return this.parseInlinedPipe(result);
+    } else {
+      return result;
     }
-    return result;
   }
 
   parseExpression() {
@@ -282,13 +277,17 @@ class _ParseAST {
   }
 
   parseEquality() {
-    // '==','!='
+    // '==','!=','===','!=='
     var result = this.parseRelational();
     while (true) {
       if (this.optionalOperator('==')) {
         result = new Binary('==', result, this.parseRelational());
+      } else if (this.optionalOperator('===')) {
+        result = new Binary('===', result, this.parseRelational());
       } else if (this.optionalOperator('!=')) {
         result = new Binary('!=', result, this.parseRelational());
+      } else if (this.optionalOperator('!==')) {
+        result = new Binary('!==', result, this.parseRelational());
       } else {
         return result;
       }
@@ -462,8 +461,30 @@ class _ParseAST {
     } else {
       var getter = this.reflector.getter(id);
       var setter = this.reflector.setter(id);
-      return new AccessMember(receiver, id, getter, setter);
+      var am = new AccessMember(receiver, id, getter, setter);
+
+      if (this.optionalOperator("|")) {
+        return this.parseInlinedPipe(am);
+      } else {
+        return am;
+      }
     }
+  }
+
+  parseInlinedPipe(result) {
+    do  {
+      if (this.parseAction) {
+        this.error("Cannot have a pipe in an action expression");
+      }
+      var name = this.expectIdentifierOrKeyword();
+      var args = ListWrapper.create();
+      while (this.optionalCharacter($COLON)) {
+        ListWrapper.push(args, this.parseExpression());
+      }
+      result = new Pipe(result, name, args, true);
+    } while(this.optionalOperator("|"));
+
+    return result;
   }
 
   parseCallArguments() {

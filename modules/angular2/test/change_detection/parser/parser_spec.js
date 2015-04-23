@@ -4,7 +4,7 @@ import {reflector} from 'angular2/src/reflection/reflection';
 import {MapWrapper, ListWrapper} from 'angular2/src/facade/collection';
 import {Parser} from 'angular2/src/change_detection/parser/parser';
 import {Lexer} from 'angular2/src/change_detection/parser/lexer';
-import {ContextWithVariableBindings} from 'angular2/src/change_detection/parser/context_with_variable_bindings';
+import {Locals} from 'angular2/src/change_detection/parser/locals';
 import {Pipe, LiteralPrimitive} from 'angular2/src/change_detection/parser/ast';
 
 class TestData {
@@ -55,21 +55,27 @@ export function main() {
     return createParser().addPipes(ast, pipes);
   }
 
-  function expectEval(text, passedInContext = null) {
-    var c = isBlank(passedInContext) ? td() : passedInContext;
-    return expect(parseAction(text).eval(c));
+  function emptyLocals() {
+    return new Locals(null, MapWrapper.create());
   }
 
-  function expectEvalError(text, passedInContext = null) {
+  function expectEval(text, passedInContext = null, passedInLocals = null) {
     var c = isBlank(passedInContext) ? td() : passedInContext;
-    return expect(() => parseAction(text).eval(c));
+    var l = isBlank(passedInLocals) ? emptyLocals() : passedInLocals;
+    return expect(parseAction(text).eval(c, l));
+  }
+
+  function expectEvalError(text, passedInContext = null, passedInLocals = null) {
+    var c = isBlank(passedInContext) ? td() : passedInContext;
+    var l = isBlank(passedInLocals) ? emptyLocals() : passedInLocals;
+    return expect(() => parseAction(text).eval(c, l));
   }
 
   function evalAsts(asts, passedInContext = null) {
     var c = isBlank(passedInContext) ? td() : passedInContext;
     var res = [];
     for (var i=0; i<asts.length; i++) {
-      ListWrapper.push(res, asts[i].eval(c));
+      ListWrapper.push(res, asts[i].eval(c, emptyLocals()));
     }
     return res;
   }
@@ -98,6 +104,7 @@ export function main() {
         it('should parse unary ! expressions', () => {
           expectEval("!true").toEqual(!true);
           expectEval("!!true").toEqual(!!true);
+          expectEval("!!!true").toEqual(!!!true);
         });
 
         it('should parse multiplicative expressions', () => {
@@ -117,7 +124,23 @@ export function main() {
 
         it('should parse equality expressions', () => {
           expectEval("2==3").toEqual(2 == 3);
+          expectEval("2=='2'").toEqual(2 == '2');
+          expectEval("2=='3'").toEqual(2 == '3');
           expectEval("2!=3").toEqual(2 != 3);
+          expectEval("2!='3'").toEqual(2 != '3');
+          expectEval("2!='2'").toEqual(2 != '2');
+          expectEval("2!=!false").toEqual(2!=!false);
+        });
+
+        it('should parse strict equality expressions', () => {
+          expectEval("2===3").toEqual(2 === 3);
+          expectEval("2==='3'").toEqual(2 === '3');
+          expectEval("2==='2'").toEqual(2 === '2');
+          expectEval("2!==3").toEqual(2 !== 3);
+          expectEval("2!=='3'").toEqual(2 !== '3');
+          expectEval("2!=='2'").toEqual(2 !== '2');
+          expectEval("false===!true").toEqual(false===!true);
+          expectEval("false!==!!true").toEqual(false!==!!true);
         });
 
         it('should parse logicalAND expressions', () => {
@@ -188,23 +211,23 @@ export function main() {
           expectEvalError('x."foo"').toThrowError(new RegExp('identifier or keyword'));
         });
 
-        it("should read a field from ContextWithVariableBindings", () => {
-          var locals = new ContextWithVariableBindings(null,
-              MapWrapper.createFromPairs([["key", "value"]]));
-          expectEval("key", locals).toEqual("value");
+        it("should read a field from Locals", () => {
+          var locals = new Locals(null,
+            MapWrapper.createFromPairs([["key", "value"]]));
+          expectEval("key", null, locals).toEqual("value");
         });
 
-        it("should handle nested ContextWithVariableBindings", () => {
-          var nested = new ContextWithVariableBindings(null,
-              MapWrapper.createFromPairs([["key", "value"]]));
-          var locals = new ContextWithVariableBindings(nested, MapWrapper.create());
-          expectEval("key", locals).toEqual("value");
+        it("should handle nested Locals", () => {
+          var nested = new Locals(null,
+            MapWrapper.createFromPairs([["key", "value"]]));
+          var locals = new Locals(nested, MapWrapper.create());
+          expectEval("key", null, locals).toEqual("value");
         });
 
-        it("should fall back to a regular field read when ContextWithVariableBindings "+
-           "does not have the requested field", () => {
-          var locals = new ContextWithVariableBindings(td(999), MapWrapper.create());
-          expectEval("a", locals).toEqual(999);
+        it("should fall back to a regular field read when Locals "+
+        "does not have the requested field", () => {
+          var locals = new Locals(null, MapWrapper.create());
+          expectEval("a", td(999), locals).toEqual(999);
         });
       });
 
@@ -216,25 +239,26 @@ export function main() {
           expectEval("fn().add(1,2)", td(0, 0, td())).toEqual(3);
         });
 
+        it('should throw when more than 10 arguments', () => {
+          expectEvalError("fn(1,2,3,4,5,6,7,8,9,10,11)").toThrowError(new RegExp('more than'));
+        });
+
         it('should throw when no method', () => {
           expectEvalError("blah()").toThrowError();
         });
 
-        it('should evaluate a method from ContextWithVariableBindings', () => {
-          var context = new ContextWithVariableBindings(
-            td(0, 0, 'parent'),
+        it('should evaluate a method from Locals', () => {
+          var locals = new Locals(
+            null,
             MapWrapper.createFromPairs([['fn', () => 'child']])
           );
-          expectEval("fn()", context).toEqual('child');
+          expectEval("fn()", td(0, 0, 'parent'), locals).toEqual('child');
         });
 
-        it('should fall back to the parent context when ContextWithVariableBindings does not ' +
-           'have the requested method', () => {
-          var context = new ContextWithVariableBindings(
-            td(0, 0, 'parent'),
-            MapWrapper.create()
-          );
-          expectEval("fn()", context).toEqual('parent');
+        it('should fall back to the parent context when Locals does not ' +
+        'have the requested method', () => {
+          var locals = new Locals(null, MapWrapper.create());
+          expectEval("fn()", td(0, 0, 'parent'), locals).toEqual('parent');
         });
       });
 
@@ -314,14 +338,14 @@ export function main() {
 
         it('should reassign when no variable binding with the given name', () => {
           var context = td();
-          var locals = new ContextWithVariableBindings(context, MapWrapper.create());
-          expectEval('a = 200', locals).toEqual(200);
+          var locals = new Locals(null, MapWrapper.create());
+          expectEval('a = 200', context, locals).toEqual(200);
           expect(context.a).toEqual(200);
         });
 
         it('should throw when reassigning a variable binding', () => {
-          var locals = new ContextWithVariableBindings(null, MapWrapper.createFromPairs([["key", "value"]]));
-          expectEvalError('key = 200', locals).toThrowError(new RegExp("Cannot reassign a variable binding"));
+          var locals = new Locals(null, MapWrapper.createFromPairs([["key", "value"]]));
+          expectEvalError('key = 200', null, locals).toThrowError(new RegExp("Cannot reassign a variable binding"));
         });
       });
 
@@ -346,7 +370,7 @@ export function main() {
 
       it('should pass exceptions', () => {
         expect(() => {
-          parseAction('a()').eval(td(() => {throw new BaseException("boo to you")}));
+          parseAction('a()').eval(td(() => {throw new BaseException("boo to you")}), emptyLocals());
         }).toThrowError('boo to you');
       });
 
@@ -374,11 +398,29 @@ export function main() {
           expect(exp.name).toEqual("uppercase");
         });
 
+        it("should parse pipes in the middle of a binding", () => {
+          var exp = parseBinding("user|a|b.name").ast;
+
+          expect(exp.name).toEqual("name");
+          expect(exp.receiver).toBeAnInstanceOf(Pipe);
+          expect(exp.receiver.name).toEqual("b");
+
+          expect(exp.receiver.exp).toBeAnInstanceOf(Pipe);
+          expect(exp.receiver.exp.name).toEqual("a");
+        });
+
         it("should parse pipes with args", () => {
-          var exp = parseBinding("1|increment:2").ast;
+          var exp = parseBinding("(1|a:2)|b:3").ast;
+
           expect(exp).toBeAnInstanceOf(Pipe);
-          expect(exp.name).toEqual("increment");
+          expect(exp.name).toEqual("b");
           expect(exp.args[0]).toBeAnInstanceOf(LiteralPrimitive);
+
+          expect(exp.exp).toBeAnInstanceOf(Pipe);
+          expect(exp.exp.name).toEqual("a");
+          expect(exp.exp.args[0]).toBeAnInstanceOf(LiteralPrimitive);
+
+          expect(exp.exp.exp).toBeAnInstanceOf(LiteralPrimitive);
         });
 
         it('should only allow identifier or keyword as formatter names', () => {
@@ -579,9 +621,8 @@ export function main() {
 
     describe('wrapLiteralPrimitive', () => {
       it('should wrap a literal primitive', () => {
-        expect(createParser().wrapLiteralPrimitive("foo", null).eval(null)).toEqual("foo");
+        expect(createParser().wrapLiteralPrimitive("foo", null).eval(null, emptyLocals())).toEqual("foo");
       });
     });
   });
 }
-

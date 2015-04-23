@@ -1,14 +1,58 @@
 import {List, MapWrapper, ListWrapper} from 'angular2/src/facade/collection';
-import {isPresent} from 'angular2/src/facade/lang';
-import {DomAdapter, setRootDomAdapter} from './dom_adapter';
+import {isBlank, isPresent} from 'angular2/src/facade/lang';
+import {setRootDomAdapter} from './dom_adapter';
+import {GenericBrowserDomAdapter} from './generic_browser_adapter';
 
 var _attrToPropMap = {
-  'inner-html': 'innerHTML',
+  'innerHtml': 'innerHTML',
   'readonly': 'readOnly',
-  'tabindex': 'tabIndex',
+  'tabindex': 'tabIndex'
 };
 
-export class BrowserDomAdapter extends DomAdapter {
+const DOM_KEY_LOCATION_NUMPAD = 3;
+
+// Map to convert some key or keyIdentifier values to what will be returned by getEventKey
+var _keyMap = {
+  // The following values are here for cross-browser compatibility and to match the W3C standard
+  // cf http://www.w3.org/TR/DOM-Level-3-Events-key/
+  '\b': 'Backspace',
+  '\t': 'Tab',
+  '\x7F': 'Delete',
+  '\x1B': 'Escape',
+  'Del': 'Delete',
+  'Esc': 'Escape',
+  'Left': 'ArrowLeft',
+  'Right': 'ArrowRight',
+  'Up': 'ArrowUp',
+  'Down':'ArrowDown',
+  'Menu': 'ContextMenu',
+  'Scroll' : 'ScrollLock',
+  'Win': 'OS'
+};
+
+// There is a bug in Chrome for numeric keypad keys:
+// https://code.google.com/p/chromium/issues/detail?id=155654
+// 1, 2, 3 ... are reported as A, B, C ...
+var _chromeNumKeyPadMap = {
+  'A': '1',
+  'B': '2',
+  'C': '3',
+  'D': '4',
+  'E': '5',
+  'F': '6',
+  'G': '7',
+  'H': '8',
+  'I': '9',
+  'J': '*',
+  'K': '+',
+  'M': '-',
+  'N': '.',
+  'O': '/',
+  '\x60': '0',
+  '\x90': 'NumLock'
+};
+
+export class BrowserDomAdapter extends GenericBrowserDomAdapter {
   static makeCurrent() {
     setRootDomAdapter(new BrowserDomAdapter());
   }
@@ -28,6 +72,12 @@ export class BrowserDomAdapter extends DomAdapter {
   }
   on(el, evt, listener) {
     el.addEventListener(evt, listener, false);
+  }
+  onAndCancel(el, evt, listener): Function {
+    el.addEventListener(evt, listener, false);
+    //Needed to follow Dart's subscription semantic, until fix of
+    //https://code.google.com/p/dart/issues/detail?id=17406
+    return () => {el.removeEventListener(evt, listener, false);};
   }
   dispatchEvent(el, evt) {
     el.dispatchEvent(evt);
@@ -55,8 +105,12 @@ export class BrowserDomAdapter extends DomAdapter {
   type(node:string) {
     return node.type;
   }
-  content(node:HTMLTemplateElement):Node {
-    return node.content;
+  content(node:HTMLElement):Node {
+    if (this.hasProperty(node, "content")) {
+      return node.content;
+    } else {
+      return node;
+    }
   }
   firstChild(el):Node {
     return el.firstChild;
@@ -79,13 +133,18 @@ export class BrowserDomAdapter extends DomAdapter {
     return res;
   }
   clearNodes(el) {
-    el.innerHTML = '';
+    for (var i = 0; i < el.childNodes.length; i++) {
+      this.remove(el.childNodes[i]);
+    }
   }
   appendChild(el, node) {
     el.appendChild(node);
   }
   removeChild(el, node) {
     el.removeChild(node);
+  }
+  replaceChild(el: Node, newChild, oldChild) {
+    el.replaceChild(newChild, oldChild);
   }
   remove(el) {
     var parent = el.parentNode;
@@ -152,6 +211,9 @@ export class BrowserDomAdapter extends DomAdapter {
   getShadowRoot(el:HTMLElement): ShadowRoot {
     return el.shadowRoot;
   }
+  getHost(el:HTMLElement): HTMLElement {
+    return el.host;
+  }
   clone(node:Node) {
     return node.cloneNode(true);
   }
@@ -207,25 +269,34 @@ export class BrowserDomAdapter extends DomAdapter {
     return element.removeAttribute(attribute);
   }
   templateAwareRoot(el) {
-    return el instanceof HTMLTemplateElement ? el.content : el;
+    return this.isTemplateElement(el) ? this.content(el) : el;
   }
   createHtmlDocument() {
-    return document.implementation.createHTMLDocument();
+    return document.implementation.createHTMLDocument('fakeTitle');
   }
   defaultDoc() {
     return document;
+  }
+  getBoundingClientRect(el) {
+    return el.getBoundingClientRect();
+  }
+  getTitle() {
+    return document.title;
+  }
+  setTitle(newTitle:string) {
+    document.title = newTitle;
   }
   elementMatches(n, selector:string):boolean {
     return n instanceof HTMLElement && n.matches(selector);
   }
   isTemplateElement(el:any):boolean {
-    return el instanceof HTMLTemplateElement;
+    return el instanceof HTMLElement && el.nodeName == "TEMPLATE";
   }
   isTextNode(node:Node):boolean {
     return node.nodeType === Node.TEXT_NODE;
   }
   isCommentNode(node:Node):boolean {
-    return node.nodeType === Node.TEXT_NODE;
+    return node.nodeType === Node.COMMENT_NODE;
   }
   isElementNode(node:Node):boolean {
     return node.nodeType === Node.ELEMENT_NODE;
@@ -233,14 +304,17 @@ export class BrowserDomAdapter extends DomAdapter {
   hasShadowRoot(node):boolean {
     return node instanceof HTMLElement && isPresent(node.shadowRoot);
   }
+  isShadowRoot(node):boolean {
+    return node instanceof ShadowRoot;
+  }
   importIntoDoc(node:Node) {
     var result = document.importNode(node, true);
     // Workaround WebKit https://bugs.webkit.org/show_bug.cgi?id=137619
     if (this.isTemplateElement(result) &&
-        !result.content.childNodes.length && node.content.childNodes.length) {
-      var childNodes = node.content.childNodes;
+        !this.content(result).childNodes.length && this.content(node).childNodes.length) {
+      var childNodes = this.content(node).childNodes;
       for (var i = 0; i < childNodes.length; ++i) {
-        result.content.appendChild(
+        this.content(result).appendChild(
             this.importIntoDoc(childNodes[i]));
       }
     }
@@ -257,5 +331,41 @@ export class BrowserDomAdapter extends DomAdapter {
   }
   isKeyframesRule(rule): boolean {
     return rule.type === CSSRule.KEYFRAMES_RULE;
+  }
+  getHref(el:Element): string {
+    return el.href;
+  }
+  getEventKey(event): string {
+    var key = event.key;
+    if (isBlank(key)) {
+      key = event.keyIdentifier;
+      // keyIdentifier is defined in the old draft of DOM Level 3 Events implemented by Chrome and Safari
+      // cf http://www.w3.org/TR/2007/WD-DOM-Level-3-Events-20071221/events.html#Events-KeyboardEvents-Interfaces
+      if (isBlank(key)) {
+        return 'Unidentified';
+      }
+      if (key.startsWith('U+')) {
+        key = String.fromCharCode(parseInt(key.substring(2), 16));
+        if (event.location === DOM_KEY_LOCATION_NUMPAD && _chromeNumKeyPadMap.hasOwnProperty(key)) {
+          // There is a bug in Chrome for numeric keypad keys:
+          // https://code.google.com/p/chromium/issues/detail?id=155654
+          // 1, 2, 3 ... are reported as A, B, C ...
+          key = _chromeNumKeyPadMap[key];
+        }
+      }
+    }
+    if (_keyMap.hasOwnProperty(key)) {
+      key = _keyMap[key];
+    }
+    return key;
+  }
+  getGlobalEventTarget(target:string) {
+    if (target == "window") {
+      return window;
+    } else if (target == "document") {
+      return document;
+    } else if (target == "body") {
+      return document.body;
+    }
   }
 }

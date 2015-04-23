@@ -1,11 +1,13 @@
 import { PromiseWrapper, Promise } from 'angular2/src/facade/async';
-import { isPresent, isBlank, int, BaseException, StringWrapper, Math } from 'angular2/src/facade/lang';
+import {
+  isPresent, isBlank, int, BaseException, StringWrapper, Math, RegExpWrapper, NumberWrapper
+} from 'angular2/src/facade/lang';
 import { ListWrapper, StringMap, StringMapWrapper } from 'angular2/src/facade/collection';
 import { bind, OpaqueToken } from 'angular2/di';
 
-import { WebDriverExtension } from '../web_driver_extension';
+import { WebDriverExtension, PerfLogFeatures } from '../web_driver_extension';
 import { Metric } from '../metric';
-import { Options } from '../sample_options';
+import { Options } from '../common_options';
 
 /**
  * A metric that reads out the performance log
@@ -20,35 +22,40 @@ export class PerflogMetric extends Metric {
   _remainingEvents:List;
   _measureCount:int;
   _setTimeout:Function;
-  _microIterations:int;
+  _microMetrics:StringMap<string, string>;
+  _perfLogFeatures:PerfLogFeatures;
 
   /**
    * @param driverExtension
    * @param setTimeout
-   * @param microIterations Number of iterations that run inside the browser by user code.
-   *                        Used for micro benchmarks.
+   * @param microMetrics Name and description of metrics provided via console.time / console.timeEnd
    **/
-  constructor(driverExtension:WebDriverExtension, setTimeout:Function, microIterations:int) {
+  constructor(driverExtension:WebDriverExtension, setTimeout:Function, microMetrics:StringMap<string, string>) {
     super();
     this._driverExtension = driverExtension;
     this._remainingEvents = [];
     this._measureCount = 0;
     this._setTimeout = setTimeout;
-    this._microIterations = microIterations;
+    this._microMetrics = microMetrics;
+    this._perfLogFeatures = driverExtension.perfLogFeatures();
   }
 
   describe():StringMap {
     var res = {
-      'script': 'script execution time in ms',
-      'render': 'render time in ms',
-      'gcTime': 'gc time in ms',
-      'gcAmount': 'gc amount in kbytes',
-      'majorGcTime': 'time of major gcs in ms',
-      'majorGcAmount': 'amount of major gcs in kbytes'
+      'scriptTime': 'script execution time in ms, including gc and render',
+      'pureScriptTime': 'script execution time in ms, without gc nor render'
     };
-    if (this._microIterations > 0) {
-      res['scriptMicroAvg'] = 'average script time for a micro iteration';
+    if (this._perfLogFeatures.render) {
+      res['renderTime'] = 'render time in and ouside of script in ms';
     }
+    if (this._perfLogFeatures.gc) {
+      res['gcTime'] = 'gc time in and ouside of script in ms';
+      res['gcAmount'] = 'gc amount in kbytes';
+      res['majorGcTime'] = 'time of major gcs in ms';
+    }
+    StringMapWrapper.forEach(this._microMetrics, (desc, name) => {
+      StringMapWrapper.set(res, name, desc);
+    });
     return res;
   }
 
@@ -120,56 +127,74 @@ export class PerflogMetric extends Metric {
 
   _aggregateEvents(events, markName) {
     var result = {
-      'script': 0,
-      'render': 0,
-      'gcTime': 0,
-      'gcAmount': 0,
-      'majorGcTime': 0,
-      'majorGcAmount': 0
+      'scriptTime': 0,
+      'pureScriptTime': 0
     };
+    if (this._perfLogFeatures.gc) {
+      result['gcTime'] = 0;
+      result['majorGcTime'] = 0;
+      result['gcAmount'] = 0;
+    }
+    if (this._perfLogFeatures.render) {
+      result['renderTime'] = 0;
+    }
+    StringMapWrapper.forEach(this._microMetrics, (desc, name) => {
+      result[name] = 0;
+    });
 
     var markStartEvent = null;
     var markEndEvent = null;
     var gcTimeInScript = 0;
+    var renderTimeInScript = 0;
 
     var intervalStarts = {};
     events.forEach( (event) => {
       var ph = event['ph'];
       var name = event['name'];
+      var microIterations = 1;
+      var microIterationsMatch = RegExpWrapper.firstMatch(_MICRO_ITERATIONS_REGEX, name);
+      if (isPresent(microIterationsMatch)) {
+        name = microIterationsMatch[1];
+        microIterations = NumberWrapper.parseInt(microIterationsMatch[2], 10);
+      }
+
       if (StringWrapper.equals(ph, 'b') && StringWrapper.equals(name, markName)) {
         markStartEvent = event;
       } else if (StringWrapper.equals(ph, 'e') && StringWrapper.equals(name, markName)) {
         markEndEvent = event;
       }
       if (isPresent(markStartEvent) && isBlank(markEndEvent) && event['pid'] === markStartEvent['pid']) {
-        if (StringWrapper.equals(ph, 'B')) {
+        if (StringWrapper.equals(ph, 'B') || StringWrapper.equals(ph, 'b')) {
           intervalStarts[name] = event;
-        } else if (StringWrapper.equals(ph, 'E') && isPresent(intervalStarts[name])) {
+        } else if ((StringWrapper.equals(ph, 'E') || StringWrapper.equals(ph, 'e')) && isPresent(intervalStarts[name])) {
           var startEvent = intervalStarts[name];
-          var duration = event['ts'] - startEvent['ts'];
+          var duration = (event['ts'] - startEvent['ts']);
           intervalStarts[name] = null;
           if (StringWrapper.equals(name, 'gc')) {
-            var amount = (startEvent['args']['usedHeapSize'] - event['args']['usedHeapSize']) / 1000;
             result['gcTime'] += duration;
+            var amount = (startEvent['args']['usedHeapSize'] - event['args']['usedHeapSize']) / 1000;
             result['gcAmount'] += amount;
             var majorGc = event['args']['majorGc'];
             if (isPresent(majorGc) && majorGc) {
               result['majorGcTime'] += duration;
-              result['majorGcAmount'] += amount;
             }
             if (isPresent(intervalStarts['script'])) {
               gcTimeInScript += duration;
             }
-          } else if (StringWrapper.equals(name, 'script') || StringWrapper.equals(name, 'render')) {
-            result[name] += duration;
+          } else if (StringWrapper.equals(name, 'render')) {
+            result['renderTime'] += duration;
+            if (isPresent(intervalStarts['script'])) {
+              renderTimeInScript += duration;
+            }
+          } else if (StringWrapper.equals(name, 'script')) {
+            result['scriptTime'] += duration;
+          } else if (isPresent(this._microMetrics[name])) {
+            result[name] += duration / microIterations;
           }
         }
       }
     });
-    result['script'] -= gcTimeInScript;
-    if (this._microIterations > 0) {
-      result['scriptMicroAvg'] = result['script'] / this._microIterations;
-    }
+    result['pureScriptTime'] = result['scriptTime'] - gcTimeInScript - renderTimeInScript;
     return isPresent(markStartEvent) && isPresent(markEndEvent) ? result : null;
   }
 
@@ -178,14 +203,16 @@ export class PerflogMetric extends Metric {
   }
 }
 
+var _MICRO_ITERATIONS_REGEX = RegExpWrapper.create('(.+)\\*(\\d+)$');
+
 var _MAX_RETRY_COUNT = 20;
 var _MARK_NAME_PREFIX = 'benchpress';
 var _SET_TIMEOUT = new OpaqueToken('PerflogMetric.setTimeout');
 var _BINDINGS = [
   bind(PerflogMetric).toFactory(
-    (driverExtension, setTimeout, microIterations) => new PerflogMetric(driverExtension, setTimeout, microIterations),
-    [WebDriverExtension, _SET_TIMEOUT, Options.MICRO_ITERATIONS]
+    (driverExtension, setTimeout, microMetrics) =>
+      new PerflogMetric(driverExtension, setTimeout, microMetrics),
+    [WebDriverExtension, _SET_TIMEOUT, Options.MICRO_METRICS]
   ),
-  bind(_SET_TIMEOUT).toValue( (fn, millis) => PromiseWrapper.setTimeout(fn, millis) ),
-  bind(Options.MICRO_ITERATIONS).toValue(0)
+  bind(_SET_TIMEOUT).toValue( (fn, millis) => PromiseWrapper.setTimeout(fn, millis) )
 ];

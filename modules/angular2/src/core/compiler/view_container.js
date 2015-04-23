@@ -1,104 +1,108 @@
-import * as viewModule from './view';
-import {DOM} from 'angular2/src/dom/dom_adapter';
 import {ListWrapper, MapWrapper, List} from 'angular2/src/facade/collection';
 import {BaseException} from 'angular2/src/facade/lang';
 import {Injector} from 'angular2/di';
 import * as eiModule from 'angular2/src/core/compiler/element_injector';
 import {isPresent, isBlank} from 'angular2/src/facade/lang';
-import {EventManager} from 'angular2/src/core/events/event_manager';
 
+import * as viewModule from './view';
+import {ViewContainerRef} from 'angular2/src/render/api';
+
+/**
+ * @exportedAs angular2/view
+ */
 export class ViewContainer {
-  parentView: viewModule.View;
-  templateElement;
-  defaultProtoView: viewModule.ProtoView;
-  _views: List<viewModule.View>;
-  _lightDom: any;
-  _eventManager: EventManager;
+  parentView: viewModule.AppView;
+  defaultProtoView: viewModule.AppProtoView;
+  _views: List<viewModule.AppView>;
   elementInjector: eiModule.ElementInjector;
-  appInjector: Injector;
-  hostElementInjector: eiModule.ElementInjector;
 
-  constructor(parentView: viewModule.View, templateElement, defaultProtoView: viewModule.ProtoView,
-      elementInjector: eiModule.ElementInjector, eventManager: EventManager, lightDom = null) {
+  constructor(parentView: viewModule.AppView,
+              defaultProtoView: viewModule.AppProtoView,
+              elementInjector: eiModule.ElementInjector) {
     this.parentView = parentView;
-    this.templateElement = templateElement;
     this.defaultProtoView = defaultProtoView;
     this.elementInjector = elementInjector;
-    this._lightDom = lightDom;
 
     // The order in this list matches the DOM order.
     this._views = [];
-    this.appInjector = null;
-    this.hostElementInjector = null;
-    this._eventManager = eventManager;
   }
 
-  hydrate(appInjector: Injector, hostElementInjector: eiModule.ElementInjector) {
-    this.appInjector = appInjector;
-    this.hostElementInjector = hostElementInjector;
+  getRender():ViewContainerRef {
+    return new ViewContainerRef(this.parentView.render, this.elementInjector.getBoundElementIndex());
   }
 
-  dehydrate() {
-    this.appInjector = null;
-    this.hostElementInjector = null;
-    this.clear();
+  internalClearWithoutRender():void {
+    for (var i = this._views.length - 1; i >= 0; i--) {
+      this._detachInjectors(i);
+    }
   }
 
-  clear() {
+  clear():void {
     for (var i = this._views.length - 1; i >= 0; i--) {
       this.remove(i);
     }
   }
 
-  get(index: number): viewModule.View {
+  get(index: number): viewModule.AppView {
     return this._views[index];
   }
 
-  get length() {
+  get length() /* :int */ {
     return this._views.length;
   }
 
-  _siblingToInsertAfter(index: number) {
-    if (index == 0) return this.templateElement;
-    return ListWrapper.last(this._views[index - 1].nodes);
+  _siblingInjectorToLinkAfter(index: number):eiModule.ElementInjector {
+    if (index == 0) return null;
+    return ListWrapper.last(this._views[index - 1].rootElementInjectors)
   }
 
-  hydrated() {
-    return isPresent(this.appInjector);
+  hydrated():boolean {
+    return this.parentView.hydrated();
   }
 
   // TODO(rado): profile and decide whether bounds checks should be added
   // to the methods below.
-  create(atIndex=-1): viewModule.View {
+  create(atIndex:number=-1, protoView:viewModule.AppProtoView = null, injector:Injector = null): viewModule.AppView {
+    if (atIndex == -1) atIndex = this._views.length;
     if (!this.hydrated()) throw new BaseException(
         'Cannot create views on a dehydrated ViewContainer');
-    // TODO(rado): replace with viewFactory.
-    var newView = this.defaultProtoView.instantiate(this.hostElementInjector, this._eventManager);
+    if (isBlank(protoView)) {
+      protoView = this.defaultProtoView;
+    }
+    var newView = this.parentView.viewFactory.getView(protoView);
     // insertion must come before hydration so that element injector trees are attached.
-    this.insert(newView, atIndex);
-    newView.hydrate(this.appInjector, this.hostElementInjector, this.parentView.context);
+    this._insertInjectors(newView, atIndex);
+    this.parentView.viewHydrator.hydrateViewInViewContainer(this, atIndex, newView, injector);
+
     return newView;
   }
 
-  insert(view, atIndex=-1): viewModule.View {
+  insert(view:viewModule.AppView, atIndex:number=-1): viewModule.AppView {
     if (atIndex == -1) atIndex = this._views.length;
-    ListWrapper.insert(this._views, atIndex, view);
-    if (isBlank(this._lightDom)) {
-      ViewContainer.moveViewNodesAfterSibling(this._siblingToInsertAfter(atIndex), view);
-    } else {
-      this._lightDom.redistribute();
-    }
+    this._insertInjectors(view, atIndex);
     this.parentView.changeDetector.addChild(view.changeDetector);
-    this._linkElementInjectors(view);
+    this.parentView.renderer.insertViewIntoContainer(this.getRender(), atIndex, view.render);
     return view;
   }
 
-  remove(atIndex=-1) {
+  _insertInjectors(view:viewModule.AppView, atIndex:number): viewModule.AppView {
+    ListWrapper.insert(this._views, atIndex, view);
+    this._linkElementInjectors(this._siblingInjectorToLinkAfter(atIndex), view);
+
+    return view;
+  }
+
+  indexOf(view:viewModule.AppView) {
+    return ListWrapper.indexOf(this._views, view);
+  }
+
+  remove(atIndex:number=-1):void {
     if (atIndex == -1) atIndex = this._views.length - 1;
-    var view = this.detach(atIndex);
-    view.dehydrate();
-    // TODO(rado): this needs to be delayed until after any pending animations.
-    this.defaultProtoView.returnToPool(view);
+    var view = this._views[atIndex];
+    // opposite order as in create
+    this.parentView.viewHydrator.dehydrateViewInViewContainer(this, atIndex, view);
+    this._detachInjectors(atIndex);
+    this.parentView.viewFactory.returnView(view);
     // view is intentionally not returned to the client.
   }
 
@@ -106,53 +110,30 @@ export class ViewContainer {
    * The method can be used together with insert to implement a view move, i.e.
    * moving the dom nodes while the directives in the view stay intact.
    */
-  detach(atIndex=-1): viewModule.View {
+  detach(atIndex:number=-1): viewModule.AppView {
     if (atIndex == -1) atIndex = this._views.length - 1;
+    var detachedView = this._detachInjectors(atIndex);
+    detachedView.changeDetector.remove();
+    this.parentView.renderer.detachViewFromContainer(this.getRender(), atIndex);
+    return detachedView;
+  }
+
+  _detachInjectors(atIndex:number): viewModule.AppView {
     var detachedView = this.get(atIndex);
     ListWrapper.removeAt(this._views, atIndex);
-    if (isBlank(this._lightDom)) {
-      ViewContainer.removeViewNodesFromParent(this.templateElement.parentNode, detachedView);
-    } else {
-      this._lightDom.redistribute();
-    }
-    detachedView.changeDetector.remove();
     this._unlinkElementInjectors(detachedView);
     return detachedView;
   }
 
-  contentTagContainers() {
-    return this._views;
-  }
-
-  nodes():List {
-    var r = [];
-    for (var i = 0; i < this._views.length; ++i) {
-      r = ListWrapper.concat(r, this._views[i].nodes);
+  _linkElementInjectors(sibling, view:viewModule.AppView):void {
+    for (var i = view.rootElementInjectors.length - 1; i >= 0; i--) {
+      view.rootElementInjectors[i].linkAfter(this.elementInjector, sibling);
     }
-    return r;
   }
 
-  _linkElementInjectors(view) {
+  _unlinkElementInjectors(view:viewModule.AppView):void {
     for (var i = 0; i < view.rootElementInjectors.length; ++i) {
-      view.rootElementInjectors[i].parent = this.elementInjector;
-    }
-  }
-
-  _unlinkElementInjectors(view) {
-    for (var i = 0; i < view.rootElementInjectors.length; ++i) {
-      view.rootElementInjectors[i].parent = null;
-    }
-  }
-
-  static moveViewNodesAfterSibling(sibling, view) {
-    for (var i = view.nodes.length - 1; i >= 0; --i) {
-      DOM.insertAfter(sibling, view.nodes[i]);
-    }
-  }
-
-  static removeViewNodesFromParent(parent, view) {
-    for (var i = view.nodes.length - 1; i >= 0; --i) {
-      DOM.removeChild(parent, view.nodes[i]);
+      view.rootElementInjectors[i].unlink();
     }
   }
 }

@@ -1,14 +1,17 @@
 import {List} from 'angular2/src/facade/collection';
+import {BindingRecord} from './binding_record';
 
 export const RECORD_TYPE_SELF = 0;
 export const RECORD_TYPE_CONST = 1;
 export const RECORD_TYPE_PRIMITIVE_OP = 2;
 export const RECORD_TYPE_PROPERTY = 3;
-export const RECORD_TYPE_INVOKE_METHOD = 4;
-export const RECORD_TYPE_INVOKE_CLOSURE = 5;
-export const RECORD_TYPE_KEYED_ACCESS = 6;
+export const RECORD_TYPE_LOCAL = 4;
+export const RECORD_TYPE_INVOKE_METHOD = 5;
+export const RECORD_TYPE_INVOKE_CLOSURE = 6;
+export const RECORD_TYPE_KEYED_ACCESS = 7;
 export const RECORD_TYPE_PIPE = 8;
-export const RECORD_TYPE_INTERPOLATE = 9;
+export const RECORD_TYPE_BINDING_PIPE = 9;
+export const RECORD_TYPE_INTERPOLATE = 10;
 
 export class ProtoRecord {
   mode:number;
@@ -18,8 +21,7 @@ export class ProtoRecord {
   fixedArgs:List;
   contextIndex:number;
   selfIndex:number;
-  bindingMemento:any;
-  directiveMemento:any;
+  bindingRecord:BindingRecord;
   lastInBinding:boolean;
   lastInDirective:boolean;
   expressionAsString:string;
@@ -31,8 +33,7 @@ export class ProtoRecord {
               fixedArgs:List,
               contextIndex:number,
               selfIndex:number,
-              bindingMemento:any,
-              directiveMemento:any,
+              bindingRecord:BindingRecord,
               expressionAsString:string,
               lastInBinding:boolean,
               lastInDirective:boolean) {
@@ -44,8 +45,7 @@ export class ProtoRecord {
     this.fixedArgs = fixedArgs;
     this.contextIndex = contextIndex;
     this.selfIndex = selfIndex;
-    this.bindingMemento = bindingMemento;
-    this.directiveMemento = directiveMemento;
+    this.bindingRecord = bindingRecord;
     this.lastInBinding = lastInBinding;
     this.lastInDirective = lastInDirective;
     this.expressionAsString = expressionAsString;

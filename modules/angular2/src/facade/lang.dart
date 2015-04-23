@@ -10,11 +10,6 @@ class Math {
   static double random() => _random.nextDouble();
 }
 
-class FIELD {
-  final String definition;
-  const FIELD(this.definition);
-}
-
 class CONST {
   const CONST();
 }
@@ -29,6 +24,7 @@ class IMPLEMENTS {
 bool isPresent(obj) => obj != null;
 bool isBlank(obj) => obj == null;
 bool isString(obj) => obj is String;
+bool isFunction(obj) => obj is Function;
 
 String stringify(obj) => obj.toString();
 

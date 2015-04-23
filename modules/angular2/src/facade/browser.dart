@@ -2,6 +2,7 @@
  * Dart version of browser APIs. This library depends on 'dart:html' and
  * therefore can only run in the browser.
  */
+library angular2.src.facade.browser; 
 
 import 'dart:js' show context;
 
@@ -10,7 +11,9 @@ export 'dart:html' show
   location,
   window,
   Element,
-  Node;
+  Node,
+  KeyboardEvent,
+  Event;
 
 final _gc = context['gc'];
 

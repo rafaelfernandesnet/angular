@@ -1,145 +1,155 @@
-import {describe, xit, it, expect, beforeEach, ddescribe, iit, el} from 'angular2/test_lib';
+import {
+  AsyncTestCompleter,
+  beforeEach,
+  ddescribe,
+  xdescribe,
+  describe,
+  el,
+  dispatchEvent,
+  expect,
+  iit,
+  inject,
+  beforeEachBindings,
+  it,
+  xit
+} from 'angular2/test_lib';
+
+import {TestBed} from 'angular2/src/test_lib/test_bed';
 
 import {DOM} from 'angular2/src/dom/dom_adapter';
-import {Type, isPresent, BaseException, assertionsEnabled, isJsObject} from 'angular2/src/facade/lang';
-import {PromiseWrapper} from 'angular2/src/facade/async';
+import {Type, isPresent, BaseException, assertionsEnabled, isJsObject, global} from 'angular2/src/facade/lang';
+import {PromiseWrapper, EventEmitter, ObservableWrapper} from 'angular2/src/facade/async';
 
-import {Injector} from 'angular2/di';
-import {Lexer, Parser, dynamicChangeDetection,
-  DynamicChangeDetection, Pipe, PipeRegistry} from 'angular2/change_detection';
+import {Injector, bind} from 'angular2/di';
+import {PipeRegistry, defaultPipeRegistry,
+  ChangeDetection, DynamicChangeDetection, Pipe, ChangeDetectorRef, ON_PUSH} from 'angular2/change_detection';
 
-import {Compiler, CompilerCache} from 'angular2/src/core/compiler/compiler';
-import {DirectiveMetadataReader} from 'angular2/src/core/compiler/directive_metadata_reader';
-import {NativeShadowDomStrategy} from 'angular2/src/core/compiler/shadow_dom_strategy';
-import {TemplateLoader} from 'angular2/src/core/compiler/template_loader';
-import {MockTemplateResolver} from 'angular2/src/mock/template_resolver_mock';
-import {BindingPropagationConfig} from 'angular2/src/core/compiler/binding_propagation_config';
-import {ComponentUrlMapper} from 'angular2/src/core/compiler/component_url_mapper';
-import {UrlResolver} from 'angular2/src/core/compiler/url_resolver';
-import {StyleUrlResolver} from 'angular2/src/core/compiler/style_url_resolver';
-import {CssProcessor} from 'angular2/src/core/compiler/css_processor';
-
-import {Decorator, Component, Viewport} from 'angular2/src/core/annotations/annotations';
-import {Template} from 'angular2/src/core/annotations/template';
+import {Decorator, Component, Viewport, DynamicComponent} from 'angular2/src/core/annotations/annotations';
+import {View} from 'angular2/src/core/annotations/view';
 import {Parent, Ancestor} from 'angular2/src/core/annotations/visibility';
+import {Attribute} from 'angular2/src/core/annotations/di';
 
 import {If} from 'angular2/src/directives/if';
 
 import {ViewContainer} from 'angular2/src/core/compiler/view_container';
+import {Compiler} from 'angular2/src/core/compiler/compiler';
+import {ElementRef} from 'angular2/src/core/compiler/element_injector';
+
+import {DirectDomRenderer} from 'angular2/src/render/dom/direct_dom_renderer';
 
 export function main() {
   describe('integration tests', function() {
-    var compiler, tplResolver;
-
-    function createCompiler(tplResolver, changedDetection) {
-      var urlResolver = new UrlResolver();
-      return new Compiler(changedDetection,
-        new TemplateLoader(null, null),
-        new DirectiveMetadataReader(),
-        new Parser(new Lexer()),
-        new CompilerCache(),
-        new NativeShadowDomStrategy(new StyleUrlResolver(urlResolver)),
-        tplResolver,
-        new ComponentUrlMapper(),
-        urlResolver,
-        new CssProcessor(null)
-      );
-    }
+    var ctx;
 
     beforeEach( () => {
-      tplResolver = new MockTemplateResolver();
-      compiler = createCompiler(tplResolver, dynamicChangeDetection);
+      ctx = new MyComp();
     });
 
     describe('react to record changes', function() {
-      var view, ctx, cd;
-      function createView(pv) {
-        ctx = new MyComp();
-        view = pv.instantiate(null, null);
-        view.hydrate(new Injector([]), null, ctx);
-        cd = view.changeDetector;
-      }
-
-      it('should consume text node changes', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({inline: '<div>{{ctxProp}}</div>'}));
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+      it('should consume text node changes', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({template: '<div>{{ctxProp}}</div>'}));
+        tb.createView(MyComp, {context: ctx}).then((view) => {
           ctx.ctxProp = 'Hello World!';
 
-          cd.detectChanges();
-          expect(DOM.getInnerHTML(view.nodes[0])).toEqual('Hello World!');
-          done();
+          view.detectChanges();
+          expect(DOM.getInnerHTML(view.rootNodes[0])).toEqual('Hello World!');
+          async.done();
         });
-      });
+      }));
 
-      it('should consume element binding changes', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({inline: '<div [id]="ctxProp"></div>'}));
+      it('should consume element binding changes', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({template: '<div [id]="ctxProp"></div>'}));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
           ctx.ctxProp = 'Hello World!';
-          cd.detectChanges();
+          view.detectChanges();
 
-          expect(view.nodes[0].id).toEqual('Hello World!');
-          done();
+          expect(view.rootNodes[0].id).toEqual('Hello World!');
+          async.done();
         });
-      });
+      }));
 
-      it('should consume binding to aria-* attributes', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({inline: '<div [aria-label]="ctxProp"></div>'}));
+      it('should consume binding to aria-* attributes', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({template: '<div [attr.aria-label]="ctxProp"></div>'}));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
           ctx.ctxProp = 'Initial aria label';
-          cd.detectChanges();
-          expect(DOM.getAttribute(view.nodes[0], 'aria-label')).toEqual('Initial aria label');
+          view.detectChanges();
+          expect(DOM.getAttribute(view.rootNodes[0], 'aria-label')).toEqual('Initial aria label');
 
           ctx.ctxProp = 'Changed aria label';
-          cd.detectChanges();
-          expect(DOM.getAttribute(view.nodes[0], 'aria-label')).toEqual('Changed aria label');
+          view.detectChanges();
+          expect(DOM.getAttribute(view.rootNodes[0], 'aria-label')).toEqual('Changed aria label');
 
-          done();
+          async.done();
         });
-      });
+      }));
 
-      it('should consume binding to property names where attr name and property name do not match', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({inline: '<div [tabindex]="ctxNumProp"></div>'}));
+      it('should consume binding to property names where attr name and property name do not match', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({template: '<div [tabindex]="ctxNumProp"></div>'}));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          cd.detectChanges();
-          expect(view.nodes[0].tabIndex).toEqual(0);
+          view.detectChanges();
+          expect(view.rootNodes[0].tabIndex).toEqual(0);
 
           ctx.ctxNumProp = 5;
-          cd.detectChanges();
-          expect(view.nodes[0].tabIndex).toEqual(5);
+          view.detectChanges();
+          expect(view.rootNodes[0].tabIndex).toEqual(5);
 
-          done();
+          async.done();
         });
-      });
+      }));
 
-      it('should consume binding to inner-html', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({inline: '<div inner-html="{{ctxProp}}"></div>'}));
+      it('should consume binding to camel-cased properties using dash-cased syntax in templates', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({template: '<input [read-only]="ctxBoolProp">'}));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+
+          view.detectChanges();
+          expect(view.rootNodes[0].readOnly).toBeFalsy();
+
+          ctx.ctxBoolProp = true;
+          view.detectChanges();
+          expect(view.rootNodes[0].readOnly).toBeTruthy();
+
+          async.done();
+        });
+      }));
+
+      it('should consume binding to inner-html', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({template: '<div inner-html="{{ctxProp}}"></div>'}));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
           ctx.ctxProp = 'Some <span>HTML</span>';
-          cd.detectChanges();
-          expect(DOM.getInnerHTML(view.nodes[0])).toEqual('Some <span>HTML</span>');
+          view.detectChanges();
+          expect(DOM.getInnerHTML(view.rootNodes[0])).toEqual('Some <span>HTML</span>');
 
           ctx.ctxProp = 'Some other <div>HTML</div>';
-          cd.detectChanges();
-          expect(DOM.getInnerHTML(view.nodes[0])).toEqual('Some other <div>HTML</div>');
+          view.detectChanges();
+          expect(DOM.getInnerHTML(view.rootNodes[0])).toEqual('Some other <div>HTML</div>');
 
-          done();
+          async.done();
         });
-      });
+      }));
 
-      it('should consume directive watch expression change.', (done) => {
+      it('should ignore bindings to unknown properties', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({template: '<div unknown="{{ctxProp}}"></div>'}));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+
+          ctx.ctxProp = 'Some value';
+          view.detectChanges();
+          expect(DOM.hasProperty(view.rootNodes[0], 'unknown')).toBeFalsy();
+
+          async.done();
+        });
+      }));
+
+      it('should consume directive watch expression change.', inject([TestBed, AsyncTestCompleter], (tb, async) => {
         var tpl =
           '<div>' +
             '<div my-dir [elprop]="ctxProp"></div>' +
@@ -147,252 +157,331 @@ export function main() {
             '<div my-dir elprop="Hi {{\'there!\'}}"></div>' +
             '<div my-dir elprop="One more {{ctxProp}}"></div>' +
           '</div>'
-        tplResolver.setTemplate(MyComp, new Template({inline: tpl, directives: [MyDir]}));
+        tb.overrideView(MyComp, new View({template: tpl, directives: [MyDir]}));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
           ctx.ctxProp = 'Hello World!';
-          cd.detectChanges();
+          view.detectChanges();
 
-          expect(view.elementInjectors[0].get(MyDir).dirProp).toEqual('Hello World!');
-          expect(view.elementInjectors[1].get(MyDir).dirProp).toEqual('Hi there!');
-          expect(view.elementInjectors[2].get(MyDir).dirProp).toEqual('Hi there!');
-          expect(view.elementInjectors[3].get(MyDir).dirProp).toEqual('One more Hello World!');
-          done();
+          expect(view.rawView.elementInjectors[0].get(MyDir).dirProp).toEqual('Hello World!');
+          expect(view.rawView.elementInjectors[1].get(MyDir).dirProp).toEqual('Hi there!');
+          expect(view.rawView.elementInjectors[2].get(MyDir).dirProp).toEqual('Hi there!');
+          expect(view.rawView.elementInjectors[3].get(MyDir).dirProp).toEqual('One more Hello World!');
+          async.done();
         });
+      }));
+
+      describe('pipes', () => {
+        beforeEachBindings(() => {
+          return [bind(ChangeDetection).toFactory(
+            () => new DynamicChangeDetection(new PipeRegistry({
+                "double" : [new DoublePipeFactory()]
+              })),
+            []
+          )];
+        });
+
+        it("should support pipes in bindings and bind config", inject([TestBed, AsyncTestCompleter], (tb, async) => {
+          tb.overrideView(MyComp,
+            new View({
+              template: '<component-with-pipes #comp [prop]="ctxProp | double"></component-with-pipes>',
+              directives: [ComponentWithPipes]
+            }));
+
+          tb.createView(MyComp, {context: ctx}).then((view) => {
+
+            ctx.ctxProp = 'a';
+            view.detectChanges();
+
+            var comp = view.rawView.locals.get("comp");
+
+            // it is doubled twice: once in the binding, second time in the bind config
+            expect(comp.prop).toEqual('aaaa');
+            async.done();
+          });
+        }));
       });
 
-      it("should support pipes in bindings and bind config", (done) => {
-        tplResolver.setTemplate(MyComp,
-          new Template({
-            inline: '<component-with-pipes #comp [prop]="ctxProp | double"></component-with-pipes>',
-            directives: [ComponentWithPipes]
-          }));
-
-
-        var registry = new PipeRegistry({
-          "double" : [new DoublePipeFactory()]
-        });
-        var changeDetection = new DynamicChangeDetection(registry);
-        var compiler = createCompiler(tplResolver, changeDetection);
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
-
-          ctx.ctxProp = 'a';
-          cd.detectChanges();
-
-          var comp = view.contextWithLocals.get("comp");
-
-          // it is doubled twice: once in the binding, second time in the bind config
-          expect(comp.prop).toEqual('aaaa');
-          done();
-        });
-      });
-
-      it('should support nested components.', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: '<child-cmp></child-cmp>',
+      it('should support nested components.', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<child-cmp></child-cmp>',
           directives: [ChildComp]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          cd.detectChanges();
+          view.detectChanges();
 
-          expect(view.nodes[0].shadowRoot.childNodes[0].nodeValue).toEqual('hello');
-          done();
+          expect(view.rootNodes).toHaveText('hello');
+          async.done();
         });
-      });
+      }));
 
       // GH issue 328 - https://github.com/angular/angular/issues/328
-      it('should support different directive types on a single node', (done) => {
-        tplResolver.setTemplate(MyComp,
-          new Template({
-            inline: '<child-cmp my-dir [elprop]="ctxProp"></child-cmp>',
+      it('should support different directive types on a single node', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp,
+          new View({
+            template: '<child-cmp my-dir [elprop]="ctxProp"></child-cmp>',
             directives: [MyDir, ChildComp]
           }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
           ctx.ctxProp = 'Hello World!';
-          cd.detectChanges();
+          view.detectChanges();
 
-          var elInj = view.elementInjectors[0];
+          var elInj = view.rawView.elementInjectors[0];
           expect(elInj.get(MyDir).dirProp).toEqual('Hello World!');
           expect(elInj.get(ChildComp).dirProp).toEqual(null);
 
-          done();
+          async.done();
         });
-      });
+      }));
 
-      it('should support directives where a binding attribute is not given', function(done) {
-        tplResolver.setTemplate(MyComp,
-          new Template({
+      it('should support directives where a binding attribute is not given', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp,
+          new View({
             // No attribute "el-prop" specified.
-            inline: '<p my-dir></p>',
+            template: '<p my-dir></p>',
             directives: [MyDir]
           }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
-          done();
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          async.done();
         });
-      });
+      }));
 
-      it('should support template directives via `<template>` elements.', (done) => {
-        tplResolver.setTemplate(MyComp,
-          new Template({
-            inline: '<div><template some-viewport var-greeting="some-tmpl"><copy-me>{{greeting}}</copy-me></template></div>',
+      it('should support directives where a selector matches property binding', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp,
+          new View({
+            template: '<p [id]="ctxProp"></p>',
+            directives: [IdComponent]
+          }));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+
+          ctx.ctxProp = 'some_id';
+          view.detectChanges();
+          expect(view.rootNodes[0].id).toEqual('some_id');
+          expect(view.rootNodes).toHaveText('Matched on id with some_id');
+
+          ctx.ctxProp = 'other_id';
+          view.detectChanges();
+          expect(view.rootNodes[0].id).toEqual('other_id');
+          expect(view.rootNodes).toHaveText('Matched on id with other_id');
+
+          async.done();
+        });
+      }));
+
+      it('should support template directives via `<template>` elements.', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp,
+          new View({
+            template: '<div><template some-viewport var-greeting="some-tmpl"><copy-me>{{greeting}}</copy-me></template></div>',
             directives: [SomeViewport]
           }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          cd.detectChanges();
+          view.detectChanges();
 
-          var childNodesOfWrapper = view.nodes[0].childNodes;
+          var childNodesOfWrapper = view.rootNodes[0].childNodes;
           // 1 template + 2 copies.
           expect(childNodesOfWrapper.length).toBe(3);
           expect(childNodesOfWrapper[1].childNodes[0].nodeValue).toEqual('hello');
           expect(childNodesOfWrapper[2].childNodes[0].nodeValue).toEqual('again');
-          done();
+          async.done();
         });
-      });
+      }));
 
-      it('should support template directives via `template` attribute.', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: '<div><copy-me template="some-viewport: var greeting=some-tmpl">{{greeting}}</copy-me></div>',
+      it('should support template directives via `template` attribute.', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<div><copy-me template="some-viewport: var greeting=some-tmpl">{{greeting}}</copy-me></div>',
           directives: [SomeViewport]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          view.detectChanges();
 
-          cd.detectChanges();
-
-          var childNodesOfWrapper = view.nodes[0].childNodes;
+          var childNodesOfWrapper = view.rootNodes[0].childNodes;
           // 1 template + 2 copies.
           expect(childNodesOfWrapper.length).toBe(3);
           expect(childNodesOfWrapper[1].childNodes[0].nodeValue).toEqual('hello');
           expect(childNodesOfWrapper[2].childNodes[0].nodeValue).toEqual('again');
-          done();
+          async.done();
         });
-      });
+      }));
 
-      it('should assign the component instance to a var-', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: '<p><child-cmp var-alice></child-cmp></p>',
+      it('should assign the component instance to a var-', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<p><child-cmp var-alice></child-cmp></p>',
           directives: [ChildComp]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          expect(view.contextWithLocals).not.toBe(null);
-          expect(view.contextWithLocals.get('alice')).toBeAnInstanceOf(ChildComp);
+          expect(view.rawView.locals).not.toBe(null);
+          expect(view.rawView.locals.get('alice')).toBeAnInstanceOf(ChildComp);
 
-          done();
+          async.done();
         })
-      });
+      }));
 
-      it('should assign two component instances each with a var-', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: '<p><child-cmp var-alice></child-cmp><child-cmp var-bob></p>',
+      it('should assign two component instances each with a var-', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<p><child-cmp var-alice></child-cmp><child-cmp var-bob></p>',
           directives: [ChildComp]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          expect(view.contextWithLocals).not.toBe(null);
-          expect(view.contextWithLocals.get('alice')).toBeAnInstanceOf(ChildComp);
-          expect(view.contextWithLocals.get('bob')).toBeAnInstanceOf(ChildComp);
-          expect(view.contextWithLocals.get('alice')).not.toBe(view.contextWithLocals.get('bob'));
+          expect(view.rawView.locals).not.toBe(null);
+          expect(view.rawView.locals.get('alice')).toBeAnInstanceOf(ChildComp);
+          expect(view.rawView.locals.get('bob')).toBeAnInstanceOf(ChildComp);
+          expect(view.rawView.locals.get('alice')).not.toBe(view.rawView.locals.get('bob'));
 
-          done();
+          async.done();
         })
-      });
+      }));
 
-      it('should assign the component instance to a var- with shorthand syntax', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: '<child-cmp #alice></child-cmp>',
+      it('should assign the component instance to a var- with shorthand syntax', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<child-cmp #alice></child-cmp>',
           directives: [ChildComp]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          expect(view.contextWithLocals).not.toBe(null);
-          expect(view.contextWithLocals.get('alice')).toBeAnInstanceOf(ChildComp);
+          expect(view.rawView.locals).not.toBe(null);
+          expect(view.rawView.locals.get('alice')).toBeAnInstanceOf(ChildComp);
 
-          done();
+          async.done();
         })
-      });
+      }));
 
-      it('should assign the element instance to a user-defined variable', (done) => {
-        tplResolver.setTemplate(MyComp,
-          new Template({inline: '<p><div var-alice><i>Hello</i></div></p>'}));
+      it('should assign the element instance to a user-defined variable', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp,
+          new View({template: '<p><div var-alice><i>Hello</i></div></p>'}));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
-          expect(view.contextWithLocals).not.toBe(null);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          expect(view.rawView.locals).not.toBe(null);
 
-          var value = view.contextWithLocals.get('alice');
+          var value = view.rawView.locals.get('alice');
           expect(value).not.toBe(null);
-          expect(value.tagName).toEqual('DIV');
+          expect(value.tagName.toLowerCase()).toEqual('div');
 
-          done();
+          async.done();
         })
-      });
+      }));
 
-      it('should provide binding configuration config to the component', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: '<push-cmp #cmp></push-cmp>',
-          directives: [[[PushBasedComp]]]
+
+      it('should assign the element instance to a user-defined variable with camelCase using dash-case', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp,
+          new View({template: '<p><div var-super-alice><i>Hello</i></div></p>'}));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          expect(view.rawView.locals).not.toBe(null);
+
+          var value = view.rawView.locals.get('superAlice');
+          expect(value).not.toBe(null);
+          expect(value.tagName.toLowerCase()).toEqual('div');
+
+          async.done();
+        })
+      }));
+
+      describe("ON_PUSH components", () => {
+        it("should use ChangeDetectorRef to manually request a check",
+          inject([TestBed, AsyncTestCompleter], (tb, async) => {
+
+          tb.overrideView(MyComp, new View({
+            template: '<push-cmp-with-ref #cmp></push-cmp-with-ref>',
+            directives: [[[PushCmpWithRef]]]
+          }));
+
+          tb.createView(MyComp, {context: ctx}).then((view) => {
+
+            var cmp = view.rawView.locals.get('cmp');
+
+            view.detectChanges();
+            expect(cmp.numberOfChecks).toEqual(1);
+
+            view.detectChanges();
+            expect(cmp.numberOfChecks).toEqual(1);
+
+            cmp.propagate();
+
+            view.detectChanges();
+            expect(cmp.numberOfChecks).toEqual(2);
+            async.done();
+          })
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        it("should be checked when its bindings got updated",
+          inject([TestBed, AsyncTestCompleter], (tb, async) => {
 
-          var cmp = view.contextWithLocals.get('cmp');
+          tb.overrideView(MyComp, new View({
+            template: '<push-cmp [prop]="ctxProp" #cmp></push-cmp>',
+            directives: [[[PushCmp]]]
+          }));
 
-          cd.detectChanges();
-          expect(cmp.numberOfChecks).toEqual(1);
+          tb.createView(MyComp, {context: ctx}).then((view) => {
+            var cmp = view.rawView.locals.get('cmp');
 
-          cd.detectChanges();
-          expect(cmp.numberOfChecks).toEqual(1);
+            ctx.ctxProp = "one";
+            view.detectChanges();
+            expect(cmp.numberOfChecks).toEqual(1);
 
-          cmp.propagate();
+            ctx.ctxProp = "two";
+            view.detectChanges();
+            expect(cmp.numberOfChecks).toEqual(2);
 
-          cd.detectChanges();
-          expect(cmp.numberOfChecks).toEqual(2);
-          done();
-        })
+            async.done();
+          })
+        }));
+
+        it('should not affect updating properties on the component', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+          tb.overrideView(MyComp, new View({
+            template: '<push-cmp-with-ref [prop]="ctxProp" #cmp></push-cmp-with-ref>',
+            directives: [[[PushCmpWithRef]]]
+          }));
+
+          tb.createView(MyComp, {context: ctx}).then((view) => {
+
+            var cmp = view.rawView.locals.get('cmp');
+
+            ctx.ctxProp = "one";
+            view.detectChanges();
+            expect(cmp.prop).toEqual("one");
+
+            ctx.ctxProp = "two";
+            view.detectChanges();
+            expect(cmp.prop).toEqual("two");
+
+            async.done();
+          })
+        }));
       });
 
-      it('should create a component that injects a @Parent', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: '<some-directive><cmp-with-parent #child></cmp-with-parent></some-directive>',
+      it('should create a component that injects a @Parent', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<some-directive><cmp-with-parent #child></cmp-with-parent></some-directive>',
           directives: [SomeDirective, CompWithParent]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          var childComponent = view.contextWithLocals.get('child');
+          var childComponent = view.rawView.locals.get('child');
           expect(childComponent.myParent).toBeAnInstanceOf(SomeDirective);
 
-          done();
+          async.done();
         })
-      });
+      }));
 
-      it('should create a component that injects an @Ancestor', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: `
+      it('should create a component that injects an @Ancestor', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: `
             <some-directive>
               <p>
                 <cmp-with-ancestor #child></cmp-with-ancestor>
@@ -401,19 +490,18 @@ export function main() {
           directives: [SomeDirective, CompWithAncestor]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
+        tb.createView(MyComp, {context: ctx}).then((view) => {
 
-          var childComponent = view.contextWithLocals.get('child');
+          var childComponent = view.rawView.locals.get('child');
           expect(childComponent.myAncestor).toBeAnInstanceOf(SomeDirective);
 
-          done();
+          async.done();
         })
-      });
+      }));
 
-      it('should create a component that injects an @Ancestor through viewport directive', (done) => {
-        tplResolver.setTemplate(MyComp, new Template({
-          inline: `
+      it('should create a component that injects an @Ancestor through viewport directive', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: `
             <some-directive>
               <p *if="true">
                 <cmp-with-ancestor #child></cmp-with-ancestor>
@@ -422,80 +510,326 @@ export function main() {
           directives: [SomeDirective, CompWithAncestor, If]
         }));
 
-        compiler.compile(MyComp).then((pv) => {
-          createView(pv);
-          cd.detectChanges();
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          view.detectChanges();
 
-          var subview = view.viewContainers[0].get(0);
-          var childComponent = subview.contextWithLocals.get('child');
+          var subview = view.rawView.viewContainers[1].get(0);
+          var childComponent = subview.locals.get('child');
           expect(childComponent.myAncestor).toBeAnInstanceOf(SomeDirective);
 
-          done();
-        })
-      });
-    });
+          async.done();
+        });
+      }));
 
-    if (assertionsEnabled()) {
+      it('should support events via EventEmitter', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<div emitter listener></div>',
+          directives: [DecoratorEmitingEvent, DecoratorListeningEvent]
+        }));
 
-      function expectCompileError(inlineTpl, errMessage, done) {
-        tplResolver.setTemplate(MyComp, new Template({inline: inlineTpl}));
-        PromiseWrapper.then(compiler.compile(MyComp),
-          (value) => {
-            done("Test failure: should not have come here as an exception was expected");
-          },
-          (err) => {
-            expect(err.message).toEqual(errMessage);
-            done();
-          }
-        );
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+
+          var injector = view.rawView.elementInjectors[0];
+
+          var emitter = injector.get(DecoratorEmitingEvent);
+          var listener = injector.get(DecoratorListeningEvent);
+
+          expect(listener.msg).toEqual('');
+
+          emitter.fireEvent('fired !');
+
+          PromiseWrapper.setTimeout(() => {
+            expect(listener.msg).toEqual('fired !');
+            async.done();
+          }, 0);
+        });
+      }));
+
+      it('should support render events', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<div listener></div>',
+          directives: [DecoratorListeningDomEvent]
+        }));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+
+          var injector = view.rawView.elementInjectors[0];
+
+          var listener = injector.get(DecoratorListeningDomEvent);
+
+          dispatchEvent(view.rootNodes[0], 'domEvent');
+
+          expect(listener.eventType).toEqual('domEvent');
+
+          async.done();
+        });
+      }));
+
+      it('should support render global events', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<div listener></div>',
+          directives: [DecoratorListeningDomEvent]
+        }));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          var injector = view.rawView.elementInjectors[0];
+
+          var listener = injector.get(DecoratorListeningDomEvent);
+          dispatchEvent(DOM.getGlobalEventTarget("window"), 'domEvent');
+          expect(listener.eventType).toEqual('window_domEvent');
+
+          listener = injector.get(DecoratorListeningDomEvent);
+          dispatchEvent(DOM.getGlobalEventTarget("document"), 'domEvent');
+          expect(listener.eventType).toEqual('document_domEvent');
+
+          view.destroy();
+          listener = injector.get(DecoratorListeningDomEvent);
+          dispatchEvent(DOM.getGlobalEventTarget("body"), 'domEvent');
+          expect(listener.eventType).toEqual('');
+
+          async.done();
+        });
+      }));
+
+      if (DOM.supportsDOMEvents()) {
+        it('should support preventing default on render events', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+          tb.overrideView(MyComp, new View({
+            template: '<input type="checkbox" listenerprevent></input><input type="checkbox" listenernoprevent></input>',
+            directives: [DecoratorListeningDomEventPrevent, DecoratorListeningDomEventNoPrevent]
+          }));
+
+          tb.createView(MyComp, {context: ctx}).then((view) => {
+            expect(DOM.getChecked(view.rootNodes[0])).toBeFalsy();
+            expect(DOM.getChecked(view.rootNodes[1])).toBeFalsy();
+            DOM.dispatchEvent(view.rootNodes[0], DOM.createMouseEvent('click'));
+            DOM.dispatchEvent(view.rootNodes[1], DOM.createMouseEvent('click'));
+            expect(DOM.getChecked(view.rootNodes[0])).toBeFalsy();
+            expect(DOM.getChecked(view.rootNodes[1])).toBeTruthy();
+            async.done();
+          });
+        }));
       }
 
-      it('should raise an error if no directive is registered for an unsupported DOM property', (done) => {
-        expectCompileError(
-          '<div [some-prop]="foo"></div>',
-          'Missing directive to handle \'some-prop\' in MyComp: <div [some-prop]="foo">',
-          done
-        );
+      it('should support render global events from multiple directives', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<div *if="ctxBoolProp" listener listenerother></div>',
+          directives: [If, DecoratorListeningDomEvent, DecoratorListeningDomEventOther]
+        }));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          globalCounter = 0;
+          ctx.ctxBoolProp = true;
+          view.detectChanges();
+
+          var subview = view.rawView.viewContainers[0].get(0);
+          var injector = subview.elementInjectors[0];
+          var listener = injector.get(DecoratorListeningDomEvent);
+          var listenerother = injector.get(DecoratorListeningDomEventOther);
+          dispatchEvent(DOM.getGlobalEventTarget("window"), 'domEvent');
+          expect(listener.eventType).toEqual('window_domEvent');
+          expect(listenerother.eventType).toEqual('other_domEvent');
+          expect(globalCounter).toEqual(1);
+
+          ctx.ctxBoolProp = false;
+          view.detectChanges();
+          dispatchEvent(DOM.getGlobalEventTarget("window"), 'domEvent');
+          expect(globalCounter).toEqual(1);
+
+          ctx.ctxBoolProp = true;
+          view.detectChanges();
+          dispatchEvent(DOM.getGlobalEventTarget("window"), 'domEvent');
+          expect(globalCounter).toEqual(2);
+
+          async.done();
+        });
+      }));
+
+      describe('dynamic ViewContainers', () => {
+
+        it('should allow to create a ViewContainer at any bound location',
+            inject([TestBed, AsyncTestCompleter, Compiler], (tb, async, compiler) => {
+          tb.overrideView(MyComp, new View({
+            template: '<div><dynamic-vp #dynamic></dynamic-vp></div>',
+            directives: [DynamicViewport]
+          }));
+
+          tb.createView(MyComp).then((view) => {
+            var dynamicVp = view.rawView.elementInjectors[0].get(DynamicViewport);
+            dynamicVp.done.then( (_) => {
+              view.detectChanges();
+              expect(view.rootNodes).toHaveText('dynamic greet');
+              async.done();
+            });
+          });
+        }));
+
       });
 
-      it('should raise an error if no directive is registered for a template with template bindings', (done) => {
-        expectCompileError(
-          '<div><div template="if: foo"></div></div>',
-          'Missing directive to handle \'if\' in <div template="if: foo">',
-          done
-        );
-      });
+      it('should support static attributes', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+        tb.overrideView(MyComp, new View({
+          template: '<input static type="text" title>',
+          directives: [NeedsAttribute]
+        }));
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          var injector = view.rawView.elementInjectors[0];
+          var needsAttribute = injector.get(NeedsAttribute);
+          expect(needsAttribute.typeAttribute).toEqual('text');
+          expect(needsAttribute.titleAttribute).toEqual('');
+          expect(needsAttribute.fooAttribute).toEqual(null);
 
-      it('should raise an error for missing template directive (1)', (done) => {
-        expectCompileError(
-          '<div><template foo></template></div>',
-          'Missing directive to handle: <template foo>',
-          done
-        );
-      });
+          async.done();
+        });
+      }));
+    });
 
-      it('should raise an error for missing template directive (2)', (done) => {
-        expectCompileError(
-          '<div><template *if="condition"></template></div>',
-          'Missing directive to handle: <template *if="condition">',
-          done
-        );
-      });
+    describe("error handling", () => {
 
-      it('should raise an error for missing template directive (3)', (done) => {
-        expectCompileError(
-          '<div *if="condition"></div>',
-          'Missing directive to handle \'if\' in MyComp: <div *if="condition">',
-          done
-        );
+      it('should specify a location of an error that happened during change detection (text)',
+        inject([TestBed, AsyncTestCompleter], (tb, async) => {
+
+        tb.overrideView(MyComp, new View({
+          template: '{{a.b}}'
+        }));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          expect(() => view.detectChanges()).toThrowError(new RegExp('{{a.b}} in MyComp'));
+          async.done();
+        })
+      }));
+
+      it('should specify a location of an error that happened during change detection (element property)',
+        inject([TestBed, AsyncTestCompleter], (tb, async) => {
+
+        tb.overrideView(MyComp, new View({
+          template: '<div [prop]="a.b"></div>'
+        }));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          expect(() => view.detectChanges()).toThrowError(new RegExp('a.b in MyComp'));
+          async.done();
+        })
+      }));
+
+      it('should specify a location of an error that happened during change detection (directive property)',
+        inject([TestBed, AsyncTestCompleter], (tb, async) => {
+
+        tb.overrideView(MyComp, new View({
+          template: '<child-cmp [prop]="a.b"></child-cmp>',
+          directives: [ChildComp]
+        }));
+
+        tb.createView(MyComp, {context: ctx}).then((view) => {
+          expect(() => view.detectChanges()).toThrowError(new RegExp('a.b in MyComp'));
+          async.done();
+        })
+      }));
+    });
+
+    it('should support imperative views',
+        inject([TestBed, AsyncTestCompleter], (tb, async) => {
+      tb.overrideView(MyComp, new View({
+        template: '<simple-imp-cmp></simple-imp-cmp>',
+        directives: [SimpleImperativeViewComponent]
+      }));
+      tb.createView(MyComp).then((view) => {
+        expect(view.rootNodes).toHaveText('hello imp view');
+        async.done();
       });
-    }
+    }));
+
+    // Disabled until a solution is found, refs:
+    // - https://github.com/angular/angular/issues/776
+    // - https://github.com/angular/angular/commit/81f3f32
+    xdescribe('Missing directive checks', () => {
+
+      if (assertionsEnabled()) {
+
+        function expectCompileError(tb, inlineTpl, errMessage, done) {
+          tb.overrideView(MyComp, new View({template: inlineTpl}));
+          PromiseWrapper.then(tb.createView(MyComp),
+            (value) => {
+              throw new BaseException("Test failure: should not have come here as an exception was expected");
+            },
+            (err) => {
+              expect(err.message).toEqual(errMessage);
+              done();
+            }
+          );
+        }
+
+        it('should raise an error if no directive is registered for a template with template bindings', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+          expectCompileError(
+            tb,
+            '<div><div template="if: foo"></div></div>',
+            'Missing directive to handle \'if\' in <div template="if: foo">',
+            () => async.done()
+          );
+        }));
+
+        it('should raise an error for missing template directive (1)', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+          expectCompileError(
+            tb,
+            '<div><template foo></template></div>',
+            'Missing directive to handle: <template foo>',
+            () => async.done()
+          );
+        }));
+
+        it('should raise an error for missing template directive (2)', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+          expectCompileError(
+            tb,
+            '<div><template *if="condition"></template></div>',
+            'Missing directive to handle: <template *if="condition">',
+            () => async.done()
+          );
+        }));
+
+        it('should raise an error for missing template directive (3)', inject([TestBed, AsyncTestCompleter], (tb, async) => {
+          expectCompileError(
+            tb,
+            '<div *if="condition"></div>',
+            'Missing directive to handle \'if\' in MyComp: <div *if="condition">',
+            () => async.done()
+          );
+        }));
+      }
+    });
+
   });
+}
+
+@Component({
+  selector: 'simple-imp-cmp'
+})
+@View({
+  renderer: 'simple-imp-cmp-renderer'
+})
+class SimpleImperativeViewComponent {
+  done;
+
+  constructor(self:ElementRef, renderer:DirectDomRenderer) {
+    renderer.setImperativeComponentRootNodes(self.hostView.render, self.boundElementIndex, [el('hello imp view')]);
+  }
+}
+
+
+@Decorator({
+  selector: 'dynamic-vp'
+})
+class DynamicViewport {
+  done;
+  constructor(vc:ViewContainer, inj:Injector, compiler:Compiler) {
+    var myService = new MyService();
+    myService.greeting = 'dynamic greet';
+    this.done = compiler.compileInHost(ChildCompUsingService).then( (hostPv) => {
+      vc.create(0, hostPv, inj.createChildFromResolved(Injector.resolve([bind(MyService).toValue(myService)])))
+    });
+  }
 }
 
 @Decorator({
   selector: '[my-dir]',
-  bind: {'dirProp':'elprop'}
+  properties: {'dirProp':'elprop'}
 })
 class MyDir {
   dirProp:string;
@@ -504,16 +838,44 @@ class MyDir {
   }
 }
 
-@Component({selector: 'push-cmp'})
-@Template({inline: '{{field}}'})
-class PushBasedComp {
+@Component({
+  selector: 'push-cmp',
+  properties: {
+    'prop': 'prop'
+  },
+  changeDetection:ON_PUSH
+})
+@View({template: '{{field}}'})
+class PushCmp {
   numberOfChecks:number;
-  bpc:BindingPropagationConfig;
+  prop;
 
-  constructor(bpc:BindingPropagationConfig) {
+  constructor() {
     this.numberOfChecks = 0;
-    this.bpc = bpc;
-    bpc.shouldBePropagated();
+  }
+
+  get field(){
+    this.numberOfChecks++;
+    return "fixed";
+  }
+}
+
+ @Component({
+  selector: 'push-cmp-with-ref',
+  properties: {
+    'prop': 'prop'
+  },
+  changeDetection:ON_PUSH
+})
+@View({template: '{{field}}'})
+class PushCmpWithRef {
+  numberOfChecks:number;
+  ref:ChangeDetectorRef;
+  prop;
+
+  constructor(ref:ChangeDetectorRef) {
+    this.numberOfChecks = 0;
+    this.ref = ref;
   }
 
   get field(){
@@ -522,29 +884,33 @@ class PushBasedComp {
   }
 
   propagate() {
-    this.bpc.shouldBePropagatedFromRoot();
+    this.ref.requestCheck();
   }
 }
 
 @Component()
+@View({directives: [
+]})
 class MyComp {
   ctxProp:string;
   ctxNumProp;
+  ctxBoolProp;
   constructor() {
     this.ctxProp = 'initial value';
     this.ctxNumProp = 0;
+    this.ctxBoolProp = false;
   }
 }
 
 
 @Component({
   selector: 'component-with-pipes',
-  bind: {
+  properties: {
     "prop": "prop | double"
   }
 })
-@Template({
-  inline: ''
+@View({
+  template: ''
 })
 class ComponentWithPipes {
   prop:string;
@@ -552,11 +918,11 @@ class ComponentWithPipes {
 
 @Component({
   selector: 'child-cmp',
-  componentServices: [MyService]
+  injectables: [MyService],
 })
-@Template({
+@View({
   directives: [MyDir],
-  inline: '{{ctxProp}}'
+  template: '{{ctxProp}}'
 })
 class ChildComp {
   ctxProp:string;
@@ -564,6 +930,19 @@ class ChildComp {
   constructor(service: MyService) {
     this.ctxProp = service.greeting;
     this.dirProp = null;
+  }
+}
+
+@Component({
+  selector: 'child-cmp-svc'
+})
+@View({
+  template: '{{ctxProp}}'
+})
+class ChildCompUsingService {
+  ctxProp:string;
+  constructor(service: MyService) {
+    this.ctxProp = service.greeting;
   }
 }
 
@@ -575,8 +954,8 @@ class SomeDirective { }
 @Component({
   selector: 'cmp-with-parent'
 })
-@Template({
-  inline: '<p>Component with an injected parent</p>',
+@View({
+  template: '<p>Component with an injected parent</p>',
   directives: [SomeDirective]
 })
 class CompWithParent {
@@ -589,8 +968,8 @@ class CompWithParent {
 @Component({
   selector: 'cmp-with-ancestor'
 })
-@Template({
-  inline: '<p>Component with an injected ancestor</p>',
+@View({
+  template: '<p>Component with an injected ancestor</p>',
   directives: [SomeDirective]
 })
 class CompWithAncestor {
@@ -602,7 +981,7 @@ class CompWithAncestor {
 
 @Component({
   selector: '[child-cmp2]',
-  componentServices: [MyService]
+  injectables: [MyService]
 })
 class ChildComp2 {
   ctxProp:string;
@@ -645,7 +1024,137 @@ class DoublePipeFactory {
     return true;
   }
 
-  create() {
+  create(cdRef) {
     return new DoublePipe();
+  }
+}
+
+@Decorator({
+  selector: '[emitter]',
+  events: ['event']
+})
+class DecoratorEmitingEvent {
+  msg: string;
+  event:EventEmitter;
+
+  constructor() {
+    this.msg = '';
+    this.event = new EventEmitter();
+  }
+
+  fireEvent(msg: string) {
+    ObservableWrapper.callNext(this.event, msg);
+  }
+}
+
+@Decorator({
+  selector: '[listener]',
+  hostListeners: {'event': 'onEvent($event)'}
+})
+class DecoratorListeningEvent {
+  msg: string;
+
+  constructor() {
+    this.msg = '';
+  }
+
+  onEvent(msg: string) {
+    this.msg = msg;
+  }
+}
+
+@Decorator({
+  selector: '[listener]',
+  hostListeners: {
+    'domEvent': 'onEvent($event.type)',
+    'window:domEvent': 'onWindowEvent($event.type)',
+    'document:domEvent': 'onDocumentEvent($event.type)',
+    'body:domEvent': 'onBodyEvent($event.type)'
+  }
+})
+class DecoratorListeningDomEvent {
+  eventType: string;
+  constructor() {
+    this.eventType = '';
+  }
+  onEvent(eventType: string) {
+    this.eventType = eventType;
+  }
+  onWindowEvent(eventType: string) {
+    this.eventType = "window_" + eventType;
+  }
+  onDocumentEvent(eventType: string) {
+    this.eventType = "document_" + eventType;
+  }
+  onBodyEvent(eventType: string) {
+    this.eventType = "body_" + eventType;
+  }
+}
+
+var globalCounter = 0;
+@Decorator({
+  selector: '[listenerother]',
+  hostListeners: {
+    'window:domEvent': 'onEvent($event.type)'
+  }
+})
+class DecoratorListeningDomEventOther {
+  eventType: string;
+  counter: int;
+  constructor() {
+    this.eventType = '';
+  }
+  onEvent(eventType: string) {
+    globalCounter++;
+    this.eventType = "other_" + eventType;
+  }
+}
+
+@Decorator({
+  selector: '[listenerprevent]',
+  hostListeners: {
+    'click': 'onEvent($event)'
+  }
+})
+class DecoratorListeningDomEventPrevent {
+  onEvent(event) {
+    return false;
+  }
+}
+
+@Decorator({
+  selector: '[listenernoprevent]',
+  hostListeners: {
+    'click': 'onEvent($event)'
+  }
+})
+class DecoratorListeningDomEventNoPrevent {
+  onEvent(event) {
+    return true;
+  }
+}
+
+@Component({
+  selector: '[id]',
+  properties: {'id': 'id'}
+})
+@View({
+  template: '<div>Matched on id with {{id}}</div>'
+})
+class IdComponent {
+  id: string;
+}
+
+@Decorator({
+  selector: '[static]'
+})
+class NeedsAttribute {
+  typeAttribute;
+  titleAttribute;
+  fooAttribute;
+  constructor(@Attribute('type') typeAttribute: string, @Attribute('title') titleAttribute: string, @Attribute('foo') fooAttribute: string) {
+    this.typeAttribute = typeAttribute;
+    this.titleAttribute = titleAttribute;
+    this.fooAttribute = fooAttribute;
   }
 }

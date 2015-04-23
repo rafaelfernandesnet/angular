@@ -39,6 +39,9 @@ export class DomAdapter {
   on(el, evt, listener) {
     throw _abstract();
   }
+  onAndCancel(el, evt, listener): Function {
+    throw _abstract();
+  }
   dispatchEvent(el, evt) {
     throw _abstract();
   }
@@ -88,6 +91,9 @@ export class DomAdapter {
     throw _abstract();
   }
   removeChild(el, node) {
+    throw _abstract();
+  }
+  replaceChild(el, newNode, oldNode) {
     throw _abstract();
   }
   remove(el) {
@@ -144,6 +150,12 @@ export class DomAdapter {
   getShadowRoot(el) {
     throw _abstract();
   }
+  getHost(el) {
+    throw _abstract();
+  }
+  getDistributedNodes(el) {
+    throw _abstract();
+  }
   clone(node) {
     throw _abstract();
   }
@@ -183,7 +195,7 @@ export class DomAdapter {
   attributeMap(element) {
     throw _abstract();
   }
-  getAttribute(element, attribute:string) {
+  getAttribute(element, attribute:string):string {
     throw _abstract();
   }
   setAttribute(element, name:string, value:string) {
@@ -199,6 +211,15 @@ export class DomAdapter {
     throw _abstract();
   }
   defaultDoc() {
+    throw _abstract();
+  }
+  getBoundingClientRect(el) {
+    throw _abstract();
+  }
+  getTitle() {
+    throw _abstract();
+  }
+  setTitle(newTitle:string) {
     throw _abstract();
   }
   elementMatches(n, selector:string):boolean {
@@ -219,6 +240,9 @@ export class DomAdapter {
   hasShadowRoot(node):boolean {
     throw _abstract();
   }
+  isShadowRoot(node):boolean {
+    throw _abstract();
+  }
   importIntoDoc(node) {
     throw _abstract();
   }
@@ -232,6 +256,27 @@ export class DomAdapter {
     throw _abstract();
   }
   isKeyframesRule(rule): boolean {
+    throw _abstract();
+  }
+  getHref(element): string {
+    throw _abstract();
+  }
+  getEventKey(event): string {
+    throw _abstract();
+  }
+  resolveAndSetHref(element, baseUrl:string, href:string) {
+    throw _abstract();
+  }
+  cssToRules(css:string): List {
+    throw _abstract();
+  }
+  supportsDOMEvents(): boolean {
+    throw _abstract();
+  }
+  supportsNativeShadowDOM(): boolean {
+    throw _abstract();
+  }
+  getGlobalEventTarget(target:string) {
     throw _abstract();
   }
 }

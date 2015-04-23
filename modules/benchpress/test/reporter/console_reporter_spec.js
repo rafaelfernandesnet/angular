@@ -29,7 +29,7 @@ export function main() {
       if (isPresent(columnWidth)) {
         ListWrapper.push(bindings, bind(ConsoleReporter.COLUMN_WIDTH).toValue(columnWidth));
       }
-      reporter = new Injector(bindings).get(ConsoleReporter);
+      reporter = Injector.resolveAndCreate(bindings).get(ConsoleReporter);
     }
 
     it('should print the sample id, description and table header', () => {
@@ -93,6 +93,22 @@ export function main() {
       expect(log).toEqual([
         '======== | ========',
         '4.00+-25% | 7.50+-20%'
+      ]);
+    });
+
+    it('should print the coefficient of variation only when it is meaningful', () => {
+      createReporter({
+        columnWidth: 8,
+        metrics: { 'a': '', 'b': '' }
+      });
+      log = [];
+      reporter.reportSample([], [
+          mv(0, 0, { 'a': 3, 'b': 0 }),
+          mv(1, 1, { 'a': 5, 'b': 0 })
+      ]);
+      expect(log).toEqual([
+        '======== | ========',
+        '4.00+-25% |     0.00'
       ]);
     });
 

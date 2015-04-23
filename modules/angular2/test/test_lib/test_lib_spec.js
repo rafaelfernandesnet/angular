@@ -1,17 +1,23 @@
 import {describe, it, iit, ddescribe, expect, tick, async, SpyObject, beforeEach, proxy} from 'angular2/test_lib';
-import {MapWrapper, ListWrapper} from 'angular2/src/facade/collection';
-import {IMPLEMENTS, Date, DateWrapper} from 'angular2/src/facade/lang';
+import {MapWrapper} from 'angular2/src/facade/collection';
+import {IMPLEMENTS} from 'angular2/src/facade/lang';
 
 class TestObj {
   prop;
   constructor(prop) {
     this.prop = prop;
   }
+  someFunc():number {
+    return -1;
+  }
 }
 
 @proxy
 @IMPLEMENTS(TestObj)
-class SpyTestObj extends SpyObject {noSuchMethod(m){return super.noSuchMethod(m)}}
+class SpyTestObj extends SpyObject {
+  constructor(){super(TestObj);}
+  noSuchMethod(m){return super.noSuchMethod(m)}
+}
 
 export function main() {
   describe('test_lib', () => {
@@ -23,19 +29,6 @@ export function main() {
 
         expect(actual).toEqual(expected);
         expect(falseActual).not.toEqual(expected);
-      });
-
-      it('should structurally compare objects with private and static fields', () => {
-        expect(DateWrapper.fromMillis(1)).toEqual(DateWrapper.fromMillis(1));
-      });
-
-      it('should work for arrays of string maps', () => {
-        expect([{'a':'b'}]).toEqual([{'a':'b'}]);
-      });
-
-      it('should work for arrays of real maps', () => {
-        expect([MapWrapper.createFromStringMap({'a':'b'})]).toEqual([MapWrapper.createFromStringMap({'a':'b'})]);
-        expect([MapWrapper.createFromStringMap({'a':'b'})]).not.toEqual([MapWrapper.createFromStringMap({'a':'c'})]);
       });
     });
 
@@ -79,10 +72,29 @@ export function main() {
       });
 
       it("should record function calls", () => {
-        spyObj.spy("someFunc").andCallFake((a,b) => a + b);
+        spyObj.spy("someFunc").andCallFake((a,b) => {
+          return a + b
+        });
 
         expect(spyObj.someFunc(1,2)).toEqual(3);
         expect(spyObj.spy("someFunc")).toHaveBeenCalledWith(1,2);
+      });
+
+      it("should support stubs", () => {
+        var s = SpyObject.stub({"a":1}, {"b":2});
+
+        expect(s.a()).toEqual(1);
+        expect(s.b()).toEqual(2);
+      });
+
+      it('should create spys for all methods', () => {
+        expect(() => spyObj.someFunc()).not.toThrow();
+      });
+
+      it('should create a default spy that does not fail for numbers', () => {
+        // Need to return null instead of undefined so that rtts assert does
+        // not fail...
+        expect(spyObj.someFunc()).toBe(null);
       });
     });
   });
